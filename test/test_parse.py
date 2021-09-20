@@ -156,7 +156,6 @@ if __name__ == "__main__":
     with open('test.json') as json_file:
         data = json.load(json_file)
 
-    #print(data['modules']['top']['cells'].keys())
     m = search_verime_attr(data,'top','top')
 
     for e in m:
@@ -170,3 +169,7 @@ if __name__ == "__main__":
     print("")
     
     print(__create_cpp_header_list(data['modules']))
+
+    print("")
+
+    print(len(data['modules']['top']['netnames']['tddloop']['bits']))
