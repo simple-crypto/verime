@@ -131,6 +131,27 @@ def __create_cpp_model_path(netpath):
         mhead_p += '->{}'.format(e)
     return mhead_p
 
+# Search top module
+def __search_top_module(modules_list):
+    for e in modules_list.keys():
+        if 'top' in modules_list[e]['attributes'].keys():
+            return e
+
+# Create a list of verilator header required for the cpp library.
+def __create_cpp_header_list(modules_list):
+    # Create an empty list of header
+    head_list = []
+    # Search for top module
+    topm = __search_top_module(modules_list)
+    head_list += ['V{}.h'.format(topm)]
+    for mn in modules_list.keys():
+        head_name = "V{}_{}.h".format(topm,mn)
+        head_list += [head_name]
+    # Add the Verilated.h header
+    head_list += ["verilated.h"]
+    return head_list
+     
+
 if __name__ == "__main__":
     with open('test.json') as json_file:
         data = json.load(json_file)
@@ -145,3 +166,7 @@ if __name__ == "__main__":
 
     for e in m:
         print(__create_cpp_model_path(__create_cpp_model_var(e[0])))
+
+    print("")
+    
+    print(__create_cpp_header_list(data['modules']))
