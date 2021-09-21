@@ -1,5 +1,5 @@
 main:
-	verilator -I. -GL=3 --cc --exe --build top.v test_main.cpp mylib.cpp
+	verilator -I. -GL=3 --cc --exe --build top.v test_main.cpp testlib.cpp
 
 clean:
 	rm -r obj_dir

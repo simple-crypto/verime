@@ -1,5 +1,6 @@
 import json
 import re
+import os, stat
 
 # Constant attribute to look for.
 # Attributed signal will be considered in the file 
@@ -290,7 +291,7 @@ def __code_lib_declaration(libname,psgis_entries,header_list,topm):
 # of probed signals
 def __code_lib_definition(libname,psgis_entries,topm):
     # Add the include of the library header
-    hinc = "#include {}.h\n".format(libname)
+    hinc = "#include  \"{}.h\"\n".format(libname)
     # Create the functions definitions
     fdef_code = ''
     fdef_code += __code_cpp_create_new_model(topm)+"\n"
@@ -302,11 +303,8 @@ def __code_lib_definition(libname,psgis_entries,topm):
     def_code = "{}\n{}".format(hinc,fdef_code)
     return def_code
 
-    
-    
-
 # Create the library files 
-def build_verilator_library(netjson_fname,libname):
+def build_verilator_library(netjson_fname,libname,out_dir):
     print("#########################################")
     print("# Generating the Verilator library '{}' #".format(libname))
     print("#########################################\n")
@@ -330,32 +328,106 @@ def build_verilator_library(netjson_fname,libname):
 
     # Build the declaration code    
     lib_dec_code = __code_lib_declaration(libname,sigsp,head_list,tm)      
+    lib_dec_file = out_dir+"/{}.h".format(libname)
+    with open(lib_dec_file,'w') as f:
+        f.write(lib_dec_code)
 
     # Build the definition code
     lib_def_code = __code_lib_definition(libname,sigsp,tm)
-    print(lib_def_code)
+    lib_def_file = out_dir+"/{}.cpp".format(libname)
+    with open(lib_def_file,'w') as f:
+        f.write(lib_def_code)
     
+# Create the list of file used in the architecture elaboration 
+def __get_pathfile(src_attr):
+    return src_attr.split(':')[0]
+
+def __get_elab_list_files(modules_list):
+    for e in modules_list.keys():
+        print(e,'->',__get_pathfile(modules_list[e]['attributes']['src']))
+
+# Generate the Yosys elaboration script  
+def __code_yosys_elab_json_script(inc_dirs,top_mod_path,json_out_path,generics_dic):
+    script_code = ""
+    # Create the include default options for the read_verilog command
+    def_rv_options = ""
+    hier_libdir_options = ""
+    for i,idr in enumerate(inc_dirs):
+        if i==len(inc_dirs)-1:
+            def_rv_options += "-I{}".format(idr)
+            hier_libdir_options += "-libdir {}".format(idr)
+        else:
+            def_rv_options += "-I{} ".format(idr)
+            hier_libdir_options += "-libdir {} ".format(idr)
+    script_code += "verilog_defaults -add {}\n".format(def_rv_options)
+    # Add the reading of the initial verilog top module
+    script_code += "read_verilog {}\n".format(top_mod_path)   
+    # Generate the generics options for the hierarchy commands
+    gen_options = ""
+    for i,gene in enumerate(generics_dic.keys()):
+        if i==len(generics_dic.keys())-1:
+            gen_options += "-chparam {} {}".format(gene,generics_dic[gene])
+        else:
+            gen_options += "-chparam {} {} ".format(gene,generics_dic[gene])
+    # Add the elaboration commands
+    top_basename = os.path.basename(top_mod_path)
+    top_mn = top_basename.split(".")[0]
+    script_code += "hierarchy -top {} {} {}\n".format(
+            top_mn,
+            hier_libdir_options,
+            gen_options
+            )
+    script_code += "proc\n"
+    script_code += "write_json {}\n".format(json_out_path)
+    return script_code
+
+def __build_yosys_elab_script(inc_dirs,top_mod_path,json_out_path,generics_dic,script_path):
+    # Build the code
+    code2write = __code_yosys_elab_json_script(
+            inc_dirs,
+            top_mod_path,
+            json_out_path,
+            generics_dic
+            )
+    # Write the file
+    with open(script_path,"w") as f:
+        f.write(code2write)
+    os.system("chmod 766 {}".format(script_path))
+
+def __run_yosys_script(yosys_exec_path,script_path):
+    print("Run yosys elaboration")
+    cmd = "{} -s {}".format(yosys_exec_path,script_path)
+    print(cmd)
+    os.system(cmd)
+
+# Workspace related 
+def __reset_and_create_workspace(workspace_dir):
+    # Delete existing workspace
+    if os.path.exists(workspace_dir):
+        os.system("rm -rf {}".format(workspace_dir))
+    # Create new workspace
+    os.mkdir(workspace_dir)
 
 
 if __name__ == "__main__":
-    with open('test.json') as json_file:
-        data = json.load(json_file)
+    workspace = "./work"
+    inc_dirs = [".","test"]
+    top_mod_path = "./top.v"
+    json_out_path = "{}/net.json".format(workspace)
+    generics_dic = {}
+    script_path = "{}/make_yosys.yo".format(workspace)
 
-    m = search_verime_attr(data,'top','top')
+    # Create workspace
+    __reset_and_create_workspace(workspace)
 
-    for e in m:
-        print(e[0],'->',e[1],'(',e[2],')')
+    # build yosys script
+    __build_yosys_elab_script(
+            inc_dirs,
+            top_mod_path,
+            json_out_path,
+            generics_dic,
+            script_path
+            )
 
-    print("")
-
-    for e in m:
-        print(__create_cpp_model_path(__create_cpp_model_var(e[0])))
-
-    print("")
-    
-    print(__create_cpp_header_list(data['modules']))
-
-    print("")
-
-    build_verilator_library('test.json',"testlib")
-
+    # Run yosys script
+    __run_yosys_script("yosys",script_path)
