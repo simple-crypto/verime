@@ -12,14 +12,13 @@ module top
     output [W-1:0] out,
     output [127:0] out_bis,
     output [15:0] tddloop,
-    (* verilator_me = "test" *)
     output valid_out
 );
 
 genvar i;
 generate
 for(i=0;i<L;i=i+1) begin: pipe_level
-    wire [2*W+1-1:0] in /* verilator public */;
+    wire [2*W+1-1:0] in;
     wire [2*W+1-1:0] out;
 
     (* verilator_me = "test2" *)
@@ -44,17 +43,12 @@ generate
 for(i=0;i<4;i=i+1) begin: li_pipe
     for(j=0;j<4;j=j+1) begin: lj_pipe
         (* verilator_me = "testd" *)
-        wire tmp /* verilator public */;
-        /* verilator lint_off WIDTH */
-        assign tmp = (((4*i+j) % 2) & 1'b1) ;
-        /* verilator lint_on WIDTH */
+        wire tmp;
+        assign tmp = 1'b0;
         assign tddloop[4*i+j] = tmp;
     end
 end
 endgenerate
-
-
-
 
 assign valid_out = pipe_level[L-1].out[0];
 andg dut(

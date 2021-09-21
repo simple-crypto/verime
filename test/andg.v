@@ -10,7 +10,7 @@ module andg
 );
 
 (* verilator_me = "test3" *)
-wire [W-1:0] tmp/* verilator public */;
+wire [W-1:0] tmp;
 assign tmp = a & b;
 assign out = tmp;
 
