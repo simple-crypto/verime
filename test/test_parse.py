@@ -33,7 +33,7 @@ def __parse_generate_index(netpath):
         vidx += e
     return vidx
 
-def __create_match_entry(mod_path,mod_name,net_name,verime_name):
+def __create_match_entry(mod_path,mod_name,net_name,verime_name,width):
     # Create the netpath
     np = __create_entry_path_name(mod_path,mod_name,net_name)
     # Create the potential idx string (for Verilog generate blocks)
@@ -42,7 +42,8 @@ def __create_match_entry(mod_path,mod_name,net_name,verime_name):
         verime_name_ret = verime_name + '__{}'.format(idx_str)
     else:
         verime_name_ret = verime_name
-    return [np,verime_name_ret]
+    # Keep the width of the signal
+    return [np,verime_name_ret,width]
 
 def __recur_search_verime_attr(mod_jtree,mod_name,mod_inst,mod_path):
     matches = []
@@ -57,7 +58,8 @@ def __recur_search_verime_attr(mod_jtree,mod_name,mod_inst,mod_path):
                         mod_path,
                         mod_inst,
                         netn,
-                        mod_jtree[mod_name]['netnames'][netn]['attributes'][verime_attr]
+                        mod_jtree[mod_name]['netnames'][netn]['attributes'][verime_attr],
+                        len(mod_jtree[mod_name]['netnames'][netn]['bits'])
                         )
                 matches += [ment]
     
@@ -125,10 +127,13 @@ def __create_cpp_model_var(netpath):
 # Create Verilator path from the list of variables
 def __create_cpp_model_path(netpath):
     # Create the model header
-    mhead_p = "V{}".format(netpath[0])
+    mhead_p = ""
     # Create the global path that should be called from Verilator
-    for e in netpath:
-        mhead_p += '->{}'.format(e)
+    for i,e in enumerate(netpath):
+        if i==0:
+            mhead_p = e
+        else:
+            mhead_p += '->{}'.format(e)
     return mhead_p
 
 # Search top module
@@ -150,7 +155,187 @@ def __create_cpp_header_list(modules_list):
     # Add the Verilated.h header
     head_list += ["verilated.h"]
     return head_list
-     
+    
+# Return the corresponding Verilator cpp type based on the width of the signal
+def __get_cpp_verilator_type(l):
+    if l<=8:
+        return "uint8_t"
+    elif 8<l and l<=16:
+        return "uint16_t"
+    elif 16<l and l<=32:
+        return "uint32_t"
+    elif 32<l and l<=64:
+        return "uint64_t"
+    else:
+        return "uint32_t *"
+
+# Build Header include based on header list
+def __code_include_header(head_list):
+    header_code = ''
+    for e in head_list:
+        inc_code = "#include \"{}\"\n".format(e)
+        header_code += inc_code
+    return header_code  
+
+# Build SimModel Structure cpp code.
+def __code_SimModel(sim_top_module):
+    struct_code = ''
+    return """struct SimModel{{ 
+    VerilatedContext * contextp;
+    V{} * vtop;
+}};\n""".format(sim_top_module)
+
+# Build the code for the create_new_model() function
+def __code_h_create_new_model():
+    h_code = 'SimModel create_new_model();\n'
+    return h_code
+
+def __code_cpp_create_new_model(sim_top_module):
+    cpp_code = """SimModel create_new_model() {{
+    VerilatedContext * contextp = new VerilatedContext;
+    V{} * top;
+    top = new V{}(contextp);
+    SimModel sm;
+    sm.contextp = contextp;
+    sm.vtop = top;
+    return sm;
+}}\n""".format(sim_top_module,sim_top_module) 
+    return cpp_code
+
+# Build the code for the sim_clock_cycle() function
+def __code_h_sim_clock_cycle():
+    h_code = "void sim_clock_cycle(SimModel sm);\n"
+    return h_code
+
+def __code_cpp_sim_clock_cycle(sim_top_module):
+    cpp_code = """void sim_clock_cycle(SimModel sm){{
+    V{} * top = sm.vtop;
+    top->clk=0;
+    top->eval();
+    top->clk=1;
+    top->eval();
+}}\n""".format(sim_top_module)
+    return cpp_code
+
+# Build the code for the delete_model() function
+def __code_h_delete_model():
+    h_code = "void delete_model(SimModel mod);\n"
+    return h_code
+
+def __code_cpp_delete_model():
+    cpp_code = """void delete_model(SimModel mod) {
+    delete mod.vtop;
+    delete mod.contextp;
+};\n"""
+    return cpp_code
+
+# Build the include barrier code to add on top of the library header file
+def __code_inc_barrier(code,libname):
+    header_variable = "LIB_{}_H_".format(libname.upper())  
+    barried_code = '#ifndef {}\n#define {}\n{}\n#endif'.format(
+            header_variable,
+            header_variable,
+            code)
+    return barried_code
+
+# Create the accessor definition and code for the given
+# match entry (obtained by parsing the Yosys json netlist)
+def __code_accessor_declaration(entry):
+    # Get the type of the return value
+    return_type = __get_cpp_verilator_type(entry[2]);    
+    # Generate the accessor function name
+    fname = "get_{}".format(entry[1])
+    # Generate the global declaration
+    fdec = "{} {}(SimModel sm)".format(return_type,fname)
+    return fdec
+
+def __code_accessor_definition(entry):
+    fdef = "    return sm.vtop->{};".format(
+            __create_cpp_model_path(__create_cpp_model_var(entry[0]))
+            )
+    return fdef
+
+def __code_h_accessor(entry):
+    # Build the declaration
+    fdec = __code_accessor_declaration(entry)
+    ret_h_f = "{};\n".format(fdec)
+    return ret_h_f
+
+def __code_cpp_accessor(entry):
+    # Build the definition
+    fdec = __code_accessor_declaration(entry)
+    fdef = __code_accessor_definition(entry)
+    ret_cpp_f = "{}{{\n{}\n}}\n".format(fdec,fdef)
+    return ret_cpp_f
+
+# Build the library header file based on the list 
+# of probed signals
+def __code_lib_declaration(libname,psgis_entries,header_list,topm):
+    # Create the header inclusion list
+    hinc = __code_include_header(header_list)
+    # Create the functions declarations
+    fdec_code = ''
+    fdec_code += __code_SimModel(topm)+"\n"
+    fdec_code += __code_h_create_new_model()+"\n"
+    fdec_code += __code_h_sim_clock_cycle()+"\n"
+    fdec_code += __code_h_delete_model()+"\n"
+    for e in psgis_entries:
+        fdec_code += __code_h_accessor(e)
+    # Create global code
+    head_code = "{}\n{}".format(hinc,fdec_code)
+    # Add the include barrier 
+    return __code_inc_barrier(head_code,libname)
+
+# Build the library definition file based on the list
+# of probed signals
+def __code_lib_definition(libname,psgis_entries,topm):
+    # Add the include of the library header
+    hinc = "#include {}.h\n".format(libname)
+    # Create the functions definitions
+    fdef_code = ''
+    fdef_code += __code_cpp_create_new_model(topm)+"\n"
+    fdef_code += __code_cpp_sim_clock_cycle(topm)+"\n"
+    fdef_code += __code_cpp_delete_model()+"\n"
+    for e in psgis_entries:
+        fdef_code += __code_cpp_accessor(e)+"\n"
+    # Create global code
+    def_code = "{}\n{}".format(hinc,fdef_code)
+    return def_code
+
+    
+    
+
+# Create the library files 
+def build_verilator_library(netjson_fname,libname):
+    print("#########################################")
+    print("# Generating the Verilator library '{}' #".format(libname))
+    print("#########################################\n")
+    # Load the netlist file
+    with open(netjson_fname) as json_netlist:
+        netlist = json.load(json_netlist)
+
+    # Search the top module
+    tm = __search_top_module(netlist['modules'])
+    print("Top module identified in the hierarchy: {}\n".format(tm))
+
+    # Search for the signal to probe
+    print("Identified signals paths:")
+    sigsp = search_verime_attr(netlist,tm,tm)
+    for i,e in enumerate(sigsp):
+        print("({}) {} ({})".format(i,e[0],e[2]))
+    print("")
+
+    # Build the header list 
+    head_list = __create_cpp_header_list(netlist['modules'])  
+
+    # Build the declaration code    
+    lib_dec_code = __code_lib_declaration(libname,sigsp,head_list,tm)      
+
+    # Build the definition code
+    lib_def_code = __code_lib_definition(libname,sigsp,tm)
+    print(lib_def_code)
+    
+
 
 if __name__ == "__main__":
     with open('test.json') as json_file:
@@ -159,7 +344,7 @@ if __name__ == "__main__":
     m = search_verime_attr(data,'top','top')
 
     for e in m:
-        print(e[0],'->',e[1])
+        print(e[0],'->',e[1],'(',e[2],')')
 
     print("")
 
@@ -172,4 +357,5 @@ if __name__ == "__main__":
 
     print("")
 
-    print(len(data['modules']['top']['netnames']['tddloop']['bits']))
+    build_verilator_library('test.json',"testlib")
+
