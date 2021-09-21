@@ -27,6 +27,7 @@ def __create_entry_path_name(mod_path,mod_name,net_name):
             net_name
             )
 
+# Parse signal resulting of generation block
 def __parse_generate_index(netpath):
     idxes = re.findall(r'\[([^]]*)\]',netpath)
     vidx = ''
@@ -337,14 +338,24 @@ def build_verilator_library(netjson_fname,libname,out_dir):
     lib_def_file = out_dir+"/{}.cpp".format(libname)
     with open(lib_def_file,'w') as f:
         f.write(lib_def_code)
+
+    # Return the list of design files used
+    return __get_elab_list_files(netlist['modules'])
     
 # Create the list of file used in the architecture elaboration 
 def __get_pathfile(src_attr):
     return src_attr.split(':')[0]
 
 def __get_elab_list_files(modules_list):
+    file_list = []
+    print("Building design files list...")
     for e in modules_list.keys():
-        print(e,'->',__get_pathfile(modules_list[e]['attributes']['src']))
+        df_module = __get_pathfile(modules_list[e]['attributes']['src'])
+        print("Module '{}' -> {}".format(e,df_module))
+        file_list += [df_module]
+    print("")
+    return file_list
+
 
 # Generate the Yosys elaboration script  
 def __code_yosys_elab_json_script(inc_dirs,top_mod_path,json_out_path,generics_dic):
@@ -397,19 +408,76 @@ def __build_yosys_elab_script(inc_dirs,top_mod_path,json_out_path,generics_dic,s
 def __run_yosys_script(yosys_exec_path,script_path):
     print("Run yosys elaboration")
     cmd = "{} -s {}".format(yosys_exec_path,script_path)
-    print(cmd)
+    print("RUNNING: {}".format(cmd))
     os.system(cmd)
 
 # Workspace related 
-def __reset_and_create_workspace(workspace_dir):
+def __reset_and_create_dir(workspace_dir):
     # Delete existing workspace
     if os.path.exists(workspace_dir):
         os.system("rm -rf {}".format(workspace_dir))
     # Create new workspace
     os.mkdir(workspace_dir)
 
+def __create_dir(dir_name):
+    os.system("mkdir -p {}".format(dir_name))
 
+# Parsing for verilator annotation
+def __parse_verilated_me_signs(file_content):
+    # Search for verime attribute found in the file
+    verime_attr_found = re.findall(r'\(\*.*{}.*\*\)'.format(verime_attr),file_content)
+    # Search for the verime signal assignation
+    verime_sigs = []
+    for att_match in verime_attr_found:
+        sig_name = att_match.split("\"")[1].split("\"")[0]
+        verime_sigs += [sig_name]
+    # Search for annotated signal declaration
+    sig_dec_annot = []  
+    for vme_sig in verime_sigs:
+        sig_dec = re.findall(
+                r'\(\*.*{}.*=.*\"{}\".*\*\).*\n.*;'.format(verime_attr,vme_sig),
+                file_content
+                )
+        sig_dec_annot += sig_dec
+    # Recover signal declaration only;
+    sig_dec_only = []
+    for an_sig_dec in sig_dec_annot:
+        sig_dec_only += [an_sig_dec.split('\n')[1].lstrip()]
+    # Format signal declaration with /* verilator public */ 
+    # annotation
+    formated_sig_dec = []
+    for sd in sig_dec_only:
+        formated_sig_dec += [sd[:-1]+' /* verilator public /*;']
+    # Replace attribute with annotated declaration
+    ret_content = file_content
+    for sd_an,f_sd in zip(sig_dec_annot,formated_sig_dec):
+        ret_content = ret_content.replace(sd_an,f_sd)
+    return ret_content
+        
+# Create the parsed Verilog design files
+def __parse_design_files(src_files_list,out_dir):
+    # For each design file considered, parse the attribute 
+    # an annotate target signals before rewritting it
+    print("Start annotated files generation...")
+    for df in src_files_list:
+        print("Processing of '{}'...".format(df),end="")
+        # Read file content
+        with open(df,'r') as f:
+            fcontent = f.read()
+        # Parse 
+        new_fcontent = __parse_verilated_me_signs(fcontent)
+        # Rewrite to new location
+        filename = os.path.basename(df)
+        new_filename = out_dir+"/{}".format(filename)
+        with open(new_filename,'w') as f:
+            f.write(new_fcontent)
+        print(" Done.")
+    print("")
+    
+
+# Main program
 if __name__ == "__main__":
+    # Global param
     workspace = "./work"
     inc_dirs = [".","test"]
     top_mod_path = "./top.v"
@@ -417,9 +485,19 @@ if __name__ == "__main__":
     generics_dic = {}
     script_path = "{}/make_yosys.yo".format(workspace)
 
-    # Create workspace
-    __reset_and_create_workspace(workspace)
+    build_dir = "./build"
+    libname = "my_funky_lib"
 
+    pdfiles_dir = "{}/an-srcs".format(workspace)
+
+    ##########################
+    # Create workspace
+    __reset_and_create_dir(workspace)
+
+    # Create build dir
+    __reset_and_create_dir(build_dir)
+
+    #### Verilator-me run
     # build yosys script
     __build_yosys_elab_script(
             inc_dirs,
@@ -431,3 +509,18 @@ if __name__ == "__main__":
 
     # Run yosys script
     __run_yosys_script("yosys",script_path)
+
+    # Build the library files 
+    design_files_used = build_verilator_library(
+            json_out_path,
+            libname,
+            build_dir
+            )   
+
+    #### Verilator run
+    # Generate parsed file to annotate the signal 
+    # With /* verilator public */ signals
+    __create_dir(pdfiles_dir) 
+    __parse_design_files(design_files_used,pdfiles_dir) 
+
+    # Run the verilator compilation 
