@@ -3,18 +3,13 @@
 //#include "Vtop_andg.h" // From Verilating "top.v"
 //#include "verilated.h"
 
-#include "testlib.h"
+#include "my_funky_lib.h"
 
 void show(SimModel sm) {
     Vtop * top = sm.vtop;
     printf("Clk %d\n",top->clk);
     printf("a %d\n",top->a);
     printf("b %d\n",top->b);
-    printf("out %d\n",top->out);
-    printf("out_bis %x %x %x\n",top->out_bis[0],top->out_bis[1],0);
-    printf("vout %d\n",top->valid_out);
-    printf("tout %x\n",top->tddloop);
-    printf("test %d\n",top->top->pipe_level__BRA__0__KET____DOT__in);
     printf("\n");
 }
 

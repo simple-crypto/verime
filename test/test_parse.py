@@ -447,7 +447,7 @@ def __parse_verilated_me_signs(file_content):
     # annotation
     formated_sig_dec = []
     for sd in sig_dec_only:
-        formated_sig_dec += [sd[:-1]+' /* verilator public /*;']
+        formated_sig_dec += [sd[:-1]+' /* verilator public */;']
     # Replace attribute with annotated declaration
     ret_content = file_content
     for sd_an,f_sd in zip(sig_dec_annot,formated_sig_dec):
@@ -479,8 +479,8 @@ def __parse_design_files(src_files_list,out_dir):
 if __name__ == "__main__":
     # Global param
     workspace = "./work"
-    inc_dirs = [".","test"]
-    top_mod_path = "./top.v"
+    inc_dirs = ["srcs"]
+    top_mod_path = "srcs/top.v"
     json_out_path = "{}/net.json".format(workspace)
     generics_dic = {}
     script_path = "{}/make_yosys.yo".format(workspace)
