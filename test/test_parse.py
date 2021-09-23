@@ -497,7 +497,7 @@ def __verilator_gen_config_file(config_file,generic_dict,top_module_path):
     with open(config_file,"w") as cf:
         json.dump(dic_cfg,cf)
 
-#### Main function
+#### Main functions
 ## Generate the verilator-me package
 def __create_verime_package(
         pckg_name,
@@ -567,41 +567,3 @@ if __name__ == "__main__":
             "yosys"
             )
 
-
-
-    ###########################
-    ## Create workspace
-    #__reset_and_create_dir(workspace)
-
-    ## Create build dir
-    #__reset_and_create_dir(build_dir)
-
-    ## Create sw dir
-    #__create_dir(software_dir)
-
-    ##### Verilator-me run
-    ## build yosys script
-    #__build_yosys_elab_script(
-    #        inc_dirs,
-    #        top_mod_path,
-    #        json_out_path,
-    #        generics_dic,
-    #        script_path
-    #        )
-
-    ## Run yosys script
-    #__run_yosys_script("yosys",script_path)
-
-    ## Build the library files 
-    #design_files_used = build_verilator_library(
-    #        json_out_path,
-    #        libname,
-    #        software_dir
-    #        )   
-
-    ##### Generation of the files for Verilator
-    ## Generate parsed file to annotate the signal 
-    ## With /* verilator public */ signals
-    #__create_dir(hw_dir) 
-    #__parse_design_files(design_files_used,hw_dir) 
-    #__verilator_gen_config_file(config_file,generics_dic) 
