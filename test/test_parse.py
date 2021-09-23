@@ -499,6 +499,20 @@ def __verilator_gen_config_file(config_file,generic_dict,top_module_path):
     with open(config_file,"w") as cf:
         json.dump(dic_cfg,cf)
 
+#### Argument parsing
+## Parse te generics arguments
+def __args_parse_generics(argparse_generics):
+    dic = {}
+    for e in argparse_generics:
+        ee = e[0]
+        sp_arg = ee.split("=")
+        if sp_arg[1].isnumeric():
+            dic[sp_arg[0]]=int(sp_arg[1])
+        else:
+            dic[sp_arg[0]]=sp_arg[1]
+    return dic
+
+
 #### Main functions
 ## Generate the verilator-me package
 def __create_verime_package(
@@ -557,7 +571,13 @@ def __create_verime_package(
     __verilator_gen_config_file(pckg_cfg_file,generics_dict,top_module_path)
 
 ## Compile with verilator for the verime package
-def __compile_verime_package(cpp_files,verime_pack_path,inc_dirs_list,exec_name,verilator_dir,verilator_exec_path):
+def __compile_verime_package(
+        cpp_files,
+        verime_pack_path,
+        inc_dirs_list,
+        exec_name,
+        verilator_dir,
+        verilator_exec_path):
     ## -I not working with verilator -> pass by setting CPATH value before
     ## executing verilator. Creation of the new value.
     cpath_new_value = ""
@@ -573,9 +593,9 @@ def __compile_verime_package(cpp_files,verime_pack_path,inc_dirs_list,exec_name,
     str_cpp_files = ""
     for i,d in enumerate(cpp_files):
         if i==len(cpp_files)-1:
-            str_cpp_files += "{}".format(d)
+            str_cpp_files += "{}".format(os.path.abspath(d))
         else:
-            str_cpp_files += "{} ".format(d)
+            str_cpp_files += "{} ".format(os.path.abspath(d))
     libname = os.path.basename(verime_pack_path)
     str_cpp_files += " {}/sw-src/{}.cpp".format(vpack_abs_path,libname)
     # Read the verime package to get the generics and top module
@@ -604,28 +624,92 @@ def __compile_verime_package(cpp_files,verime_pack_path,inc_dirs_list,exec_name,
     print("\n\n")
     os.system(cmd) 
      
-     
-
 
 # Main program
 if __name__ == "__main__":
-    
-    # Build the verime package
-    __create_verime_package(
-            "my_funky_lib",
-            ".",
-            "./work",
-            ["srcs"],
-            {"L":3},
-            "srcs/top.v",
-            "yosys"
+    # Parsing arguments
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+            "-y","--ydir",default=[],action='append',nargs='+',help="Directory for the module search."
             )
+    parser.add_argument(
+            "-I","--Idir",default=[],action='append',nargs='+',help="Directory to search for include."
+            )
+    parser.add_argument(
+            "-g","--generics",default=[], action='append',nargs='+',help="Generic value, as -g<Id>=<Value>."
+            )
+    parser.add_argument(
+            "-top","--top", default=None, help="Path to the top module file, e.g. /home/user/top.v."
+            )
+    parser.add_argument(
+            "--yosys-exec", default="yosys", help="Yosys executable."
+            )
+    parser.add_argument(
+            "--verime-work", default="/tmp/verime-work", help="Verilator-me workspace."
+            )
+    parser.add_argument(
+            "--pack", default=None, help="The path to the Verilator-me package used. Path represented as <dirname>/<packname>."
+            )
+    parser.add_argument(
+            "-cpp","--cpp-files", default=[], action='append',nargs='+',help="C++ file to use in the compilation process. If specified, the compilation mode is used."
+            )
+    parser.add_argument(
+            "--exec", default="exec", help="Path of the binary produced by the compilation process."
+            )
+    parser.add_argument(
+            "--verilator-work", default="/tmp/verime-verilator-work", help="Verilator-me workspace for verilator."
+            )
+    parser.add_argument(
+            "--verilator-exec", default="verilator", help="Verilator executable."
+            )
+    
+    args = parser.parse_args()
 
-    __compile_verime_package(
-            ['test_main.cpp'],
-            "./my_funky_lib",
-            [],
-            "./test-verime",
-            "dv_here",
-            "verilator")
+    ## Check args
+    if len(args.cpp_files)==0:
+        if args.top==None:
+            print("ERROR: A top module should be provided.")
+            quit()
+    if args.pack==None:
+        print("ERROR: A package should be provided.")   
+        quit()
+
+    # Create list of arguments
+    list_y = []
+    for e in args.ydir:
+        list_y += [e[0]]
+
+    list_I = []
+    for e in args.Idir:
+        list_I += [e[0]]
+
+    list_cpp = []
+    for e in args.cpp_files:
+        list_cpp += [e[0]]
+
+    dic_gen = __args_parse_generics(args.generics)
+    print(dic_gen)
+
+    # Check if it is compilation of building
+    if len(args.cpp_files)==0:
+        # Building package
+        __create_verime_package(
+                os.path.basename(os.path.abspath(args.pack)),
+                os.path.dirname(os.path.abspath(args.pack)),
+                args.verime_work,
+                list_y,
+                dic_gen,
+                args.top,
+                "yosys"
+                )
+    else:
+        # Compile package
+        __compile_verime_package(
+                list_cpp,
+                os.path.abspath(args.pack),
+                list_I,
+                args.exec,
+                args.verilator_work,
+                args.verilator_exec)
+
 
