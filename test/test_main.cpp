@@ -3,7 +3,7 @@
 //#include "Vtop_andg.h" // From Verilating "top.v"
 //#include "verilated.h"
 
-#include "build/my_funky_lib.h"
+#include "my_funky_lib.h"
 
 void show(SimModel sm) {
     Vtop * top = sm.vtop;

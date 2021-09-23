@@ -1,6 +1,8 @@
+#! /bin/env python3
 import json
 import re
-import os, stat
+import os
+import argparse
 
 # Constant attribute to look for.
 # Attributed signal will be considered in the file 
@@ -554,16 +556,73 @@ def __create_verime_package(
     __parse_design_files(design_files_used,pckg_hw_dir) 
     __verilator_gen_config_file(pckg_cfg_file,generics_dict,top_module_path)
 
+## Compile with verilator for the verime package
+def __compile_verime_package(cpp_files,verime_pack_path,inc_dirs_list,exec_name,verilator_dir,verilator_exec_path):
+    ## -I not working with verilator -> pass by setting CPATH value before
+    ## executing verilator. Creation of the new value.
+    cpath_new_value = ""
+    for i,d in enumerate(inc_dirs_list):
+        if i==len(inc_dirs_list)-1:
+            cpath_new_value += "{}:$CPATH".format(os.path.abspath(d))
+        else:
+            cpath_new_value += "{}:".format(os.path.abspath(d))
+    # Add the path of the verime_library 
+    vpack_abs_path = os.path.abspath(verime_pack_path)
+    cpath_new_value = "{}/sw-src:{}".format(vpack_abs_path,cpath_new_value)
+    # Create the list of cpp files 
+    str_cpp_files = ""
+    for i,d in enumerate(cpp_files):
+        if i==len(cpp_files)-1:
+            str_cpp_files += "{}".format(d)
+        else:
+            str_cpp_files += "{} ".format(d)
+    libname = os.path.basename(verime_pack_path)
+    str_cpp_files += " {}/sw-src/{}.cpp".format(vpack_abs_path,libname)
+    # Read the verime package to get the generics and top module
+    with open("{}/config-verilator-me.json".format(vpack_abs_path),"r") as f:
+        cfg = json.load(f)
+    # Build parameters for verilator
+    top_mod_path = "{}/hw-src/{}".format(vpack_abs_path,cfg["TOP"])
+    srcs_path = "{}/hw-src".format(vpack_abs_path)
+    generics_params = cfg["GENERIC_TOP"]
+    # Create global command
+    cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} -o {} {} {} {}".format(
+            cpath_new_value,
+            verilator_exec_path,
+            srcs_path,
+            verilator_dir,
+            exec_name,
+            generics_params,
+            top_mod_path,
+            str_cpp_files
+            )
+    # Run the build command
+    print(cmd)
+    print("")
+    os.system(cmd) 
+     
+     
+
+
 # Main program
 if __name__ == "__main__":
     
+    # Build the verime package
     __create_verime_package(
             "my_funky_lib",
-            "./build-bis",
+            ".",
             "./work",
             ["srcs"],
-            {"L":2},
+            {"L":3},
             "srcs/top.v",
             "yosys"
             )
+
+    __compile_verime_package(
+            ['test_main.cpp'],
+            "./my_funky_lib",
+            [],
+            "./test-work",
+            "dv_here",
+            "verilator")
 
