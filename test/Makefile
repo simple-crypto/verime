@@ -1,7 +1,25 @@
-main:
-	verilator -y work/an-srcs/ --cc --exe --build work/an-srcs/top.v test_main.cpp build/my_funky_lib.cpp 
+test: build-pack compile-pack
+	@echo "############"
+	@echo "# Run test #" 
+	@echo "############"
+	@echo ""
+	./my_funky_exec
+
+build-pack:
+	@echo "#################"
+	@echo "# Build package #" 
+	@echo "#################"
+	@echo ""
+	../verilator-me.py -y srcs -top srcs/top.v --pack my_funky_lib
+
+compile-pack:
+	@echo "###################"
+	@echo "# Compile package #" 
+	@echo "###################"
+	@echo ""
+	../verilator-me.py --pack my_funky_lib -cpp test_main.cpp --exec my_funky_exec
 
 clean:
-	if [ -d obj_dir ]; then rm -r obj_dir; fi
-	if [ -d build ]; then rm -r build; fi
-	if [ -d work ]; then rm -r work; fi
+	if [ -d my_funky_lib ]; then rm -r my_funky_lib; fi
+	if [ -e my_funky_exec ]; then rm my_funky_exec; fi
+

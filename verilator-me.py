@@ -409,7 +409,7 @@ def __build_yosys_elab_script(inc_dirs,top_mod_path,json_out_path,generics_dic,s
 
 def __run_yosys_script(yosys_exec_path,script_path):
     print("Run yosys elaboration")
-    cmd = "{} -s {}".format(yosys_exec_path,script_path)
+    cmd = "{} -q -s {}".format(yosys_exec_path,script_path)
     print("RUNNING: {}".format(cmd))
     os.system(cmd)
 
@@ -688,7 +688,6 @@ if __name__ == "__main__":
         list_cpp += [e[0]]
 
     dic_gen = __args_parse_generics(args.generics)
-    print(dic_gen)
 
     # Check if it is compilation of building
     if len(args.cpp_files)==0:
