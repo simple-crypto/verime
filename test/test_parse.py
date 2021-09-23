@@ -417,7 +417,7 @@ def __reset_and_create_dir(workspace_dir):
     if os.path.exists(workspace_dir):
         os.system("rm -rf {}".format(workspace_dir))
     # Create new workspace
-    os.mkdir(workspace_dir)
+    os.system("mkdir -p {}".format(workspace_dir))
 
 def __create_dir(dir_name):
     os.system("mkdir -p {}".format(dir_name))
@@ -474,53 +474,134 @@ def __parse_design_files(src_files_list,out_dir):
         print(" Done.")
     print("")
     
+## Create verilator config
+# Create Verilator top-level parameter
+def __verilator_param_verilog_generics(generic_dict):
+    param_string = ""
+    for i,k in enumerate(generic_dict.keys()):
+        if i == len(generic_dict.keys())-1:
+            param_string += "-G{}={}".format(k,generic_dict[k])
+        else:
+            param_string += "-G{}={} ".format(k,generic_dict[k])
+    return param_string
 
-# Main program
-if __name__ == "__main__":
-    # Global param
-    workspace = "./work"
-    inc_dirs = ["srcs"]
-    top_mod_path = "srcs/top.v"
-    json_out_path = "{}/net.json".format(workspace)
-    generics_dic = {}
-    script_path = "{}/make_yosys.yo".format(workspace)
+# Create the configuration file for verilator 
+def __verilator_gen_config_file(config_file,generic_dict,top_module_path):
+    # Save the generics
+    dic_cfg = {}
+    dic_cfg['GENERIC_TOP']=__verilator_param_verilog_generics(generic_dict)
+    # Save the top level filename
+    tl_fn = os.path.basename(top_module_path)
+    dic_cfg['TOP']=tl_fn
+    # Save the file
+    with open(config_file,"w") as cf:
+        json.dump(dic_cfg,cf)
 
-    build_dir = "./build"
-    libname = "my_funky_lib"
+#### Main function
+## Generate the verilator-me package
+def __create_verime_package(
+        pckg_name,
+        build_dir,
+        work_dir,
+        inc_dir_list,
+        generics_dict,
+        top_module_path,
+        yosys_exec_path):
+    # Create the different paths
+    json_out_path = "{}/net.json".format(work_dir)     
+    yosys_script_path = "{}/make_yosys.yo".format(work_dir)
 
-    pdfiles_dir = "{}/an-srcs".format(workspace)
+    pckg_dir = "{}/{}".format(build_dir,pckg_name)
+
+    pckg_hw_dir = "{}/hw-src".format(pckg_dir)
+    pckg_sw_dir = "{}/sw-src".format(pckg_dir)
+    pckg_cfg_file = "{}/config-verilator-me.json".format(pckg_dir)
 
     ##########################
     # Create workspace
-    __reset_and_create_dir(workspace)
+    __reset_and_create_dir(work_dir)
 
     # Create build dir
-    __reset_and_create_dir(build_dir)
+    __reset_and_create_dir(pckg_dir)
+
+    # Create sw dir
+    __create_dir(pckg_sw_dir)
 
     #### Verilator-me run
     # build yosys script
     __build_yosys_elab_script(
-            inc_dirs,
-            top_mod_path,
+            inc_dir_list,
+            top_module_path,
             json_out_path,
-            generics_dic,
-            script_path
+            generics_dict,
+            yosys_script_path
             )
 
     # Run yosys script
-    __run_yosys_script("yosys",script_path)
+    __run_yosys_script(yosys_exec_path,yosys_script_path)
 
     # Build the library files 
     design_files_used = build_verilator_library(
             json_out_path,
-            libname,
-            build_dir
+            pckg_name,
+            pckg_sw_dir
             )   
 
-    #### Verilator run
+    #### Generation of the files for Verilator
     # Generate parsed file to annotate the signal 
     # With /* verilator public */ signals
-    __create_dir(pdfiles_dir) 
-    __parse_design_files(design_files_used,pdfiles_dir) 
+    __create_dir(pckg_hw_dir) 
+    __parse_design_files(design_files_used,pckg_hw_dir) 
+    __verilator_gen_config_file(pckg_cfg_file,generics_dict,top_module_path)
 
-    # Run the verilator compilation 
+# Main program
+if __name__ == "__main__":
+    
+    __create_verime_package(
+            "my_funky_lib",
+            "./build-bis",
+            "./work",
+            ["srcs"],
+            {"L":2},
+            "srcs/top.v",
+            "yosys"
+            )
+
+
+
+    ###########################
+    ## Create workspace
+    #__reset_and_create_dir(workspace)
+
+    ## Create build dir
+    #__reset_and_create_dir(build_dir)
+
+    ## Create sw dir
+    #__create_dir(software_dir)
+
+    ##### Verilator-me run
+    ## build yosys script
+    #__build_yosys_elab_script(
+    #        inc_dirs,
+    #        top_mod_path,
+    #        json_out_path,
+    #        generics_dic,
+    #        script_path
+    #        )
+
+    ## Run yosys script
+    #__run_yosys_script("yosys",script_path)
+
+    ## Build the library files 
+    #design_files_used = build_verilator_library(
+    #        json_out_path,
+    #        libname,
+    #        software_dir
+    #        )   
+
+    ##### Generation of the files for Verilator
+    ## Generate parsed file to annotate the signal 
+    ## With /* verilator public */ signals
+    #__create_dir(hw_dir) 
+    #__parse_design_files(design_files_used,hw_dir) 
+    #__verilator_gen_config_file(config_file,generics_dic) 
