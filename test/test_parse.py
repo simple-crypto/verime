@@ -585,20 +585,23 @@ def __compile_verime_package(cpp_files,verime_pack_path,inc_dirs_list,exec_name,
     top_mod_path = "{}/hw-src/{}".format(vpack_abs_path,cfg["TOP"])
     srcs_path = "{}/hw-src".format(vpack_abs_path)
     generics_params = cfg["GENERIC_TOP"]
+    # Build the executable name
+    used_exec_name = os.path.abspath(exec_name)
     # Create global command
     cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} -o {} {} {} {}".format(
             cpath_new_value,
             verilator_exec_path,
             srcs_path,
             verilator_dir,
-            exec_name,
+            used_exec_name,
             generics_params,
             top_mod_path,
             str_cpp_files
             )
     # Run the build command
+    print("RUNNING VERILATOR BUILD COMMAND:")
     print(cmd)
-    print("")
+    print("\n\n")
     os.system(cmd) 
      
      
@@ -622,7 +625,7 @@ if __name__ == "__main__":
             ['test_main.cpp'],
             "./my_funky_lib",
             [],
-            "./test-work",
+            "./test-verime",
             "dv_here",
             "verilator")
 
