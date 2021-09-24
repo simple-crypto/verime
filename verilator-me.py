@@ -33,8 +33,11 @@ def __create_entry_path_name(mod_path,mod_name,net_name):
 def __parse_generate_index(netpath):
     idxes = re.findall(r'\[([^]]*)\]',netpath)
     vidx = ''
-    for e in idxes:
-        vidx += e
+    for i,e in enumerate(idxes):
+        if i==len(idxes)-1:
+            vidx += '{}'.format(e)
+        else:
+            vidx += '{}_'.format(e)
     return vidx
 
 def __create_match_entry(mod_path,mod_name,net_name,verime_name,width):
@@ -272,6 +275,110 @@ def __code_cpp_accessor(entry):
     ret_cpp_f = "{}{{\n{}\n}}\n".format(fdec,fdef)
     return ret_cpp_f
 
+# Create the code for the ProbedState structure 
+def __code_ProbedState_element(entry):
+    l = entry[2]
+    if l<=8:
+        return "uint8_t * {};".format(entry[1])
+    elif 8<l and l<=16:
+        return "uint16_t * {};".format(entry[1])
+    elif 16<l and l<=32:
+        return "uint32_t * {};".format(entry[1])
+    elif 32<l and l<=64:
+        return "uint64_t * {};".format(entry[1])
+    else:
+        am_32w = l//32
+        if l%32!=0:
+            am_32w += 1
+        return "uint32_t (* {})[{}];".format(entry[1],am_32w)
+    
+def __code_ProbedState(entries):
+    struct_code = ''
+    struct_code += 'typedef struct {\n'
+    for e in entries:
+        struct_code += '    {}\n'.format(__code_ProbedState_element(e))
+    struct_code += '} ProbedState;\n'
+    return struct_code
+
+# Code for the link_state() function
+def __code_link_state_declaration():
+    def_code = 'void link_state(SimModel sm, ProbedState * state)'
+    return def_code
+
+def __code_link_state_definition(entries):
+    def_code = "{} {{\n".format(__code_link_state_declaration())
+    # For each entry write the bounding  
+    for e in entries:
+        if e[2]>64:
+            code_e = "state->{} = &sm.vtop->{}".format(
+                    e[1],
+                    __create_cpp_model_path(__create_cpp_model_var(e[0]))
+                    )
+        else:
+            code_e = "state->{} = &sm.vtop->{}".format(
+                    e[1],
+                    __create_cpp_model_path(__create_cpp_model_var(e[0]))
+                    )
+
+        def_code += '    {};\n'.format(code_e)
+    # Close bracket
+    def_code += '}'
+    return def_code
+
+def __code_h_link_state():
+    dec_code = __code_link_state_declaration()
+    return '{};\n'.format(dec_code)
+
+def __code_cpp_link_state(entries):
+    def_code = __code_link_state_definition(entries)
+    return '{}\n'.format(def_code)
+
+# Code for the write_probed_state
+def __code_declaration_write_probed_state():
+    dec_code = "void write_probed_state(ProbedState * state, FILE * stream)"
+    return dec_code
+
+def __code_fwrite_probed_state_elem(entry):
+    l=entry[2]
+    longword = False
+    if l<=8:
+        sizew = 1
+        amw = 1
+    elif 8<l and l<=16:
+        sizew = 2
+        amw = 1
+    elif 16<l and l<=32:
+        sizew = 4
+        amw = 1
+    elif 32<l and l<=64:
+        sizew = 16
+        amw = 1
+    else:
+        longword = True
+        sizew = 4
+        amw = l//32
+        if l%32!=0:
+            amw += 1
+    if longword:
+        return "fwrite(state->{}[0],{},{},stream)".format(entry[1],sizew,amw)
+    else:
+        return "fwrite(state->{},{},{},stream)".format(entry[1],sizew,amw)
+
+def __code_definition_write_probed_state(entries):
+    def_code = '{} {{\n'.format(__code_declaration_write_probed_state())
+    # For each entry
+    for e in entries:
+        def_code += "    {};\n".format(__code_fwrite_probed_state_elem(e))
+    # Close final bracket
+    def_code += "}"
+    return def_code 
+
+def __code_h_write_probed_state():
+    return "{};\n".format(__code_declaration_write_probed_state())
+
+def __code_cpp_write_probed_state(entries):
+    return "{}\n".format(__code_definition_write_probed_state(entries))
+
 # Build the library header file based on the list 
 # of probed signals
 def __code_lib_declaration(libname,psgis_entries,header_list,topm):
@@ -280,9 +387,14 @@ def __code_lib_declaration(libname,psgis_entries,header_list,topm):
     # Create the functions declarations
     fdec_code = ''
     fdec_code += __code_SimModel(topm)+"\n"
+    fdec_code += __code_ProbedState(psgis_entries)+"\n"
     fdec_code += __code_h_create_new_model()+"\n"
     fdec_code += __code_h_sim_clock_cycle()+"\n"
     fdec_code += __code_h_delete_model()+"\n"
+    fdec_code += __code_h_link_state()+"\n"
+    fdec_code += __code_h_write_probed_state()+"\n"
+    # Create the accessor declaration
+    fdec_code += "// Individualss accessors.\n"
     for e in psgis_entries:
         fdec_code += __code_h_accessor(e)
     # Create global code
@@ -300,6 +412,10 @@ def __code_lib_definition(libname,psgis_entries,topm):
     fdef_code += __code_cpp_create_new_model(topm)+"\n"
     fdef_code += __code_cpp_sim_clock_cycle(topm)+"\n"
     fdef_code += __code_cpp_delete_model()+"\n"
+    fdef_code += __code_cpp_link_state(psgis_entries)+"\n"
+    fdef_code += __code_cpp_write_probed_state(psgis_entries)+"\n"
+    # Create accessors definition
+    fdef_code += "// Individualss accessors.\n"
     for e in psgis_entries:
         fdef_code += __code_cpp_accessor(e)+"\n"
     # Create global code
