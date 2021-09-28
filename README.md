@@ -1,9 +1,11 @@
 # verilator-me
 
-Tool to ease the generation of oracle for HW circuit analysis.
+Tool to ease the generation of oracle for HW circuit analysis based on the Verilator tool.
 
-The tool automatically generates a C++ library with top level function to access the signals specified by the user in the Verilog code.
-The goal of the tool is to ease the prbing of specific signals values inside a complex HW architecture. 
+The tool automatically generates a C++ library with top level function to
+access the signals specified by the user in the Verilog code.  The goal of the
+tool is to ease the probing of specific signals values inside a complex HW
+architecture.  
 
 In short, the workflow works as follows:
 1. Annotate the Verilog source files with the attribute (\* verilator\_me =
@@ -20,4 +22,17 @@ In short, the workflow works as follows:
 
 ## Dependencies
 
-Test 
+* [Yosys](http://www.clifford.at/yosys/) (Yosys 0.9+4081 tested)
+* [Verilator](https://www.veripool.org/verilator/) (Verilator 4.213 devel tested)
+* Python (Python 3.8.10 tested)
+
+## Exemplary run
+
+The [test](test/) directory contains an example of use for the tool. The
+exemplary HW circuit considered does not implement a particular functionality,
+but try to represent different Verilog coding styles such as bus handling,
+generate and imbricated generate blocks or instanciation of submodules.
+
+The two files 
+
+
