@@ -35,7 +35,12 @@ generate and imbricated generate blocks or instanciation of submodules.
 
 Some signals in the architecture are annotaded with the *verilator\_me* attribute. These are the one
 we would like to probe during a simulation of the circuit. The tool will look for such signals in the architecture 
-and produce the high-level library code to easily probe these. For the test example, the library can be generate by running
+and produce the high-level library code to easily probe these. The attribute annotation is of the form 
+```
+(* verilator_me = "verime_signal_name")
+```
+Where *verime\_signal\_name* is the name that will be used in the generated libraries to refer to the annotated signal.
+For the test example, the library can be generate by running
 ```
 ../verilator-me.py -y srcs -top srcs/top.v --pack my_funky_lib
 ```
@@ -97,3 +102,16 @@ Next are detailled the different steps in the main function definition.
 + The simulation is run. Here, the calls to the *sim\_clock\_cycle* is used to evaluate the values across the hierarchy during a clock cycle. During each clock cycle, the value of each probed state are written sequentially in the save file by calling the *write_probed_state* function.
 + Finally, the used ressources are closed.
 
+## File format
+
+The configuration file generated (i.e., *config-verilator-me.json* and *config-dump.json*) are saved using the JSON format. The architecture of the *config-dump.json* file is of a particular interest, since it describes the way a call to the *write_probed_state* function is writting the value on the specified stream. In particular, each call is writting the ProbedState structure as a bytes stream, where all the words are written in little endian (byte per byte) consecutively. Taking this into consideration, the JSON file *config-dump.json* has the following architecture:
+
++ config-dump.json
+   + **'bytes'**: Total amount of bytes in the probed state. 
+   + **'sigs'**: 
+      + **'verime_signal_name'**: 
+         + **'bytes'**: The amount of bytes used by the signal in the saving file.
+         + **'bits'**: the amount of valid bits in the saved data.
+
+
+Put in an other way, every call to the *write_probed_state* function is writting *config-dump.json['bytes']* bytes to the specified stream following the architecture defined in *config-dump.json['sigs']*, where the signal order is following the order in the JSON file.
