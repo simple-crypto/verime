@@ -630,10 +630,19 @@ def __args_parse_generics(argparse_generics):
 
 #### JSON for the format  
 def __am_bytes(size_bits):
-    am_w = size_bits // 8
-    if size_bits % 8 != 0:
-        am_w += 1
-    return am_w
+    if size_bits<=8:
+        return 1
+    elif 8<size_bits and size_bits<=16:
+        return 2
+    elif 16<size_bits and size_bits<=32:
+        return 4
+    elif 32<size_bits and size_bits<=64:
+        return 8
+    else:
+        am_w32 = size_bits // 32
+        if size_bits % 32:
+            am_w32 + 1
+        return 4*am_w32
 
 def __jsoncfg_sigs_dict(psgis_entries):
     glob_dict = {}

@@ -20,7 +20,7 @@ input valid_in;
 input [W-1:0] a;
 input [W-1:0] b;
 output [W-1:0] out;
-(* verilator_me = "outp" *)
+(* verilator_me = "out_bis"*)
 output [127:0] out_bis;
 output [15:0] tddloop;
 output valid_out;
@@ -32,7 +32,7 @@ for(i=0;i<L;i=i+1) begin: pipe_level
     wire [2*W+1-1:0] in;
     wire [2*W+1-1:0] out;
 
-    (* verilator_me = "test2" *)
+    (* verilator_me = "reg_in_pipeline" *)
     reg [2*W+1-1:0] regin;
     always@(posedge clk)
     begin
@@ -53,7 +53,7 @@ genvar j;
 generate
 for(i=0;i<4;i=i+1) begin: li_pipe
     for(j=0;j<4;j=j+1) begin: lj_pipe
-        (* verilator_me = "testd" *)
+        (* verilator_me = "tmp" *)
         wire tmp;
         assign tmp = 1'b0;
         assign tddloop[4*i+j] = tmp;
