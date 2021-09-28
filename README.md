@@ -29,10 +29,21 @@ In short, the workflow works as follows:
 ## Exemplary run
 
 The [test](test/) directory contains an example of use for the tool. The
-exemplary HW circuit considered does not implement a particular functionality,
-but try to represent different Verilog coding styles such as bus handling,
+exemplary HW circuit considered (under [test/src](test/src/)) does not implement a particular functionality,
+but tries to represent different Verilog coding styles such as bus handling,
 generate and imbricated generate blocks or instanciation of submodules.
 
-The two files 
+Some signals in the architecture are annotaded with the *verilator\_me* attribute. These are the one
+we would like to probe during a simulation of the circuit. The tool will look for such signals in the architecture 
+and produce the high-level library code to easily probe these. For the test example, the library can be generate by running
+
+
+.. code-block::
+
+   pip install scalib
+
+
+Basically, the library will contain a structure containing 
+pointers to each of the signal values. The values are accessible once the 
 
 
