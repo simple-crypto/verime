@@ -22,4 +22,4 @@ compile-pack:
 clean:
 	if [ -d my_funky_lib ]; then rm -r my_funky_lib; fi
 	if [ -e my_funky_exec ]; then rm my_funky_exec; fi
-
+	if [ -e test.save ]; then rm test.save; fi
