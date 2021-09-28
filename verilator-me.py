@@ -458,7 +458,7 @@ def build_verilator_library(netjson_fname,libname,out_dir):
         f.write(lib_def_code)
 
     # Return the list of design files used
-    return __get_elab_list_files(netlist['modules'])
+    return [__get_elab_list_files(netlist['modules']),sigsp]
     
 # Create the list of file used in the architecture elaboration 
 def __get_pathfile(src_attr):
@@ -628,6 +628,36 @@ def __args_parse_generics(argparse_generics):
             dic[sp_arg[0]]=sp_arg[1]
     return dic
 
+#### JSON for the format  
+def __am_bytes(size_bits):
+    am_w = size_bits // 8
+    if size_bits % 8 != 0:
+        am_w += 1
+    return am_w
+
+def __jsoncfg_sigs_dict(psgis_entries):
+    glob_dict = {}
+    bytes_total = 0
+    for e in psgis_entries:
+        e_dict = {}
+        e_dict['bytes'] = __am_bytes(e[2])
+        e_dict['bits'] = e[2]
+        bytes_total += e_dict['bytes']
+        glob_dict[e[1]] = e_dict
+    return [glob_dict,bytes_total]
+
+def __jsoncfg_globalcfg_dict(psgis_entries):
+    [sig_dict,bytes_am] = __jsoncfg_sigs_dict(psgis_entries)
+    ret_dict = {'bytes':bytes_am,'sigs':sig_dict}
+    return ret_dict
+
+def __jsoncfg_create(psgis_entries,filename):
+    # Create the config dic
+    cfg_dic = __jsoncfg_globalcfg_dict(psgis_entries)
+    # Write to file 
+    with open(filename,'w') as f:
+        json.dump(cfg_dic,f)
+
 
 #### Main functions
 ## Generate the verilator-me package
@@ -648,6 +678,7 @@ def __create_verime_package(
     pckg_hw_dir = "{}/hw-src".format(pckg_dir)
     pckg_sw_dir = "{}/sw-src".format(pckg_dir)
     pckg_cfg_file = "{}/config-verilator-me.json".format(pckg_dir)
+    pckg_data_format_file = "{}/config-dump.json".format(pckg_dir)
 
     ##########################
     # Create workspace
@@ -673,7 +704,7 @@ def __create_verime_package(
     __run_yosys_script(yosys_exec_path,yosys_script_path)
 
     # Build the library files 
-    design_files_used = build_verilator_library(
+    [design_files_used,sigsp] = build_verilator_library(
             json_out_path,
             pckg_name,
             pckg_sw_dir
@@ -685,6 +716,9 @@ def __create_verime_package(
     __create_dir(pckg_hw_dir) 
     __parse_design_files(design_files_used,pckg_hw_dir) 
     __verilator_gen_config_file(pckg_cfg_file,generics_dict,top_module_path)
+
+    # Create the config file for the dumping
+    __jsoncfg_create(sigsp,pckg_data_format_file)
 
 ## Compile with verilator for the verime package
 def __compile_verime_package(
