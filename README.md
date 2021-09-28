@@ -31,7 +31,11 @@ In short, the workflow works as follows:
 The [test](test/) directory contains an example of use for the tool. The
 exemplary HW circuit considered (under [test/src](https://git-crypto.elen.ucl.ac.be/cmomin/verilator-me/-/tree/README/test/srcs)) does not implement a particular functionality,
 but tries to represent different Verilog coding styles such as bus handling,
-generate and imbricated generate blocks or instanciation of submodules.
+generate and imbricated generate blocks or instanciation of submodules. Once in the [test](test/) directory, one may run 
+```
+make 
+```
+to run all the steps described below. 
 
 Some signals in the architecture are annotaded with the *verilator\_me* attribute. These are the one
 we would like to probe during a simulation of the circuit. The tool will look for such signals in the architecture 
@@ -129,4 +133,4 @@ The configuration file generated (i.e., *config-verilator-me.json* and *config-d
          + **'bits'**: the amount of valid bits in the saved data.
 
 
-Put in an other way, every call to the *write_probed_state* function is writting *config-dump.json['bytes']* bytes to the specified stream following the architecture defined in *config-dump.json['sigs']*, where the signal order is following the order in the JSON file.
+Put in an other way, every call to the *write_probed_state* function is writting *config-dump.json['bytes']* bytes to the specified stream following the architecture defined in *config-dump.json['sigs']*, where the signal order is following the order in the JSON file. An examplary code to parse the generated dump file can be found in the file [verime-utils.py](https://git-crypto.elen.ucl.ac.be/cmomin/verilator-me/-/blob/main/verime-utils.py).
