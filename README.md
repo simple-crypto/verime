@@ -26,7 +26,7 @@ In short, the workflow works as follows:
 * [Verilator](https://www.veripool.org/verilator/) (Verilator 4.213 devel tested)
 * Python (Python 3.8.10 tested)
 
-## Exemplary run
+## Examplary run
 
 The [test](test/) directory contains an example of use for the tool. The
 exemplary HW circuit considered (under [test/src](https://git-crypto.elen.ucl.ac.be/cmomin/verilator-me/-/tree/README/test/srcs)) does not implement a particular functionality,
@@ -101,6 +101,21 @@ Next are detailled the different steps in the main function definition.
 + Before running the simulation, the inputs values are set using the primary model header generated in the SimModel creation.
 + The simulation is run. Here, the calls to the *sim\_clock\_cycle* is used to evaluate the values across the hierarchy during a clock cycle. During each clock cycle, the value of each probed state are written sequentially in the save file by calling the *write_probed_state* function.
 + Finally, the used ressources are closed.
+
+Finally, once the main function is defined, the user can compile any C++ code together with a package generated with verilator-me.
+For the test example, this can be done with the following command
+```
+../verilator-me.py --pack my_funky_lib -cpp test_main.cpp --exec my_funky_exec
+```
+where the argument 
++ **--pack** defines the package to use during the compilation.
++ **-cpp** defines a C++ file to add during the compilation (can be used multiple times).
++ **--exec** defines the path where the executable will be built. 
+
+In more details, specifying a C++ file will run the verilator-me in the compilation mode. That is, is will take as input C++ files and Verilator-me packages to compile everything with Verilator in order to build a final executable. Finally, it has to be noted that the tool allows a user to tunes other parameters such as the workspaces of Verilator or Verilator-me. All the differents parameters can be found by running the following command
+```
+./verilator-me --help
+```
 
 ## File format
 
