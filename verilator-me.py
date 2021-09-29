@@ -594,7 +594,7 @@ def __parse_verilated_me_signs(file_content):
     # Search for the verime signal assignation
     verime_sigs = []
     for att_match in verime_attr_found:
-        sig_name = att_match.split('"')[1].split('"')[0]
+        sig_name = att_match.split("{}".format(verime_attr))[1].split('"')[1].split('"')[0]
         verime_sigs += [sig_name]
     # Search for annotated signal declaration
     sig_dec_annot = []

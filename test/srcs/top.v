@@ -20,7 +20,7 @@ input valid_in;
 input [W-1:0] a;
 input [W-1:0] b;
 output [W-1:0] out;
-(* verilator_me = "out_bis"*)
+(* my_other_attr = "other", verilator_me = "out_bis", my_second_other = "test"*)
 output [127:0] out_bis;
 output [15:0] tddloop;
 output valid_out;
