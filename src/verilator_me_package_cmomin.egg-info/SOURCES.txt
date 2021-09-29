@@ -1,0 +1,11 @@
+LICENSE
+README.md
+pyproject.toml
+setup.cfg
+src/verilator_me_package_cmomin.egg-info/PKG-INFO
+src/verilator_me_package_cmomin.egg-info/SOURCES.txt
+src/verilator_me_package_cmomin.egg-info/dependency_links.txt
+src/verilator_me_package_cmomin.egg-info/top_level.txt
+src/verime/__init__.py
+src/verime/verilator_me.py
+src/verime/verime_utils.py
