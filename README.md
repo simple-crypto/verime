@@ -27,6 +27,18 @@ In short, the workflow works as follows:
 * Python (Python 3.8.10 tested)
 * bash on Unix system (Ubuntu 20.04.3)
 
+## Installation
+The following commands allow to install the Verilator-me tool
+```
+make
+make install
+```
+In a same way, the following command allows to uninstall the tool
+```
+make uninstall
+```
+It has to be noted that these commands are just building a python wheel and installing it or uninstalling it
+with pip.
 ## Examplary run
 
 The [test](test/) directory contains an example of use for the tool. The
