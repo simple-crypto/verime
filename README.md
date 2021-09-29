@@ -25,6 +25,7 @@ In short, the workflow works as follows:
 * [Yosys](http://www.clifford.at/yosys/) (Yosys 0.9+4081 tested)
 * [Verilator](https://www.veripool.org/verilator/) (Verilator 4.213 devel tested)
 * Python (Python 3.8.10 tested)
+* bash on Unix system (Ubuntu 20.04.3)
 
 ## Examplary run
 
