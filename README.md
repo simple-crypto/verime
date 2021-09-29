@@ -59,7 +59,7 @@ and produce the high-level library code to easily probe these. The attribute ann
 Where *verime\_signal\_name* is the name that will be used in the generated libraries to refer to the annotated signal.
 For the test example, the library can be generate by running
 ```
-../verilator-me.py -y srcs -top srcs/top.v --pack my_funky_lib
+python3 -m verime.verilator_me -y srcs -top srcs/top.v --pack my_funky_lib
 ```
 This command creates a package for the top module defined in './srcs/top.v', specifying to look for Verilog modules in the directory './srcs'. The package created will be located at './my\_funky\_lib'. The building mecanism will first elaborate the HW design using the Yosys tool and create a .json file containing the architecture as well as the attributes of each signals. Based on this .json file, the tool builds the architecture path of each signal that the user aims to probe and creates the C++ library. The package created has the following architecture:
 
@@ -122,7 +122,7 @@ Next are detailled the different steps in the main function definition.
 Finally, once the main function is defined, the user can compile any C++ code together with a package generated with verilator-me.
 For the test example, this can be done with the following command
 ```
-../verilator-me.py --pack my_funky_lib -cpp test_main.cpp --exec my_funky_exec
+python3 -m verime.verilator_me --pack my_funky_lib -cpp test_main.cpp --exec my_funky_exec
 ```
 where the argument 
 + **--pack** defines the package to use during the compilation.
@@ -131,7 +131,7 @@ where the argument
 
 In more details, specifying a C++ file will run the verilator-me in the compilation mode. That is, is will take as input C++ files and Verilator-me packages to compile everything with Verilator in order to build a final executable. Finally, it has to be noted that the tool allows a user to tunes other parameters such as the workspaces of Verilator or Verilator-me. All the differents parameters can be found by running the following command
 ```
-./verilator-me --help
+python3 -m verime.verilator_me --help
 ```
 
 ## File format
