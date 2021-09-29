@@ -10,14 +10,14 @@ build-pack:
 	@echo "# Build package #" 
 	@echo "#################"
 	@echo ""
-	../verilator-me.py -y srcs -top srcs/top.v --pack my_funky_lib
+	python3 -m verime.verilator_me -y srcs -top srcs/top.v --pack my_funky_lib
 
 compile-pack:
 	@echo "###################"
 	@echo "# Compile package #" 
 	@echo "###################"
 	@echo ""
-	../verilator-me.py --pack my_funky_lib -cpp test_main.cpp --exec my_funky_exec
+	python3 -m verime.verilator_me --pack my_funky_lib -cpp test_main.cpp --exec my_funky_exec
 
 clean:
 	if [ -d my_funky_lib ]; then rm -r my_funky_lib; fi
