@@ -578,6 +578,11 @@ def __run_yosys_script(yosys_exec_path, script_path):
 def __reset_and_create_dir(workspace_dir):
     # Delete existing workspace
     if os.path.exists(workspace_dir):
+        print("")
+        print("### WARNING #######################################")
+        print("Directory {} found -> the directory will be deleted.".format(workspace_dir))
+        print("###################################################")
+        print("")
         os.system("rm -rf {}".format(workspace_dir))
     # Create new workspace
     os.system("mkdir -p {}".format(workspace_dir))
@@ -789,6 +794,8 @@ def __compile_verime_package(
     verilator_dir,
     verilator_exec_path,
 ):
+    ## Reset the Verilator workspace directory
+    __reset_and_create_dir(verilator_dir)
     ## -I not working with verilator -> pass by setting CPATH value before
     ## executing verilator. Creation of the new value.
     cpath_new_value = ""
