@@ -27,6 +27,12 @@ In short, the workflow works as follows:
 * Python (Python 3.8.10 tested)
 * bash on Unix system (Ubuntu 20.04.3)
 
+Currently, the package is not on Pypi and the user should install the following
+tool in order to build and install Verilator-me.
+
+* 'build' python packet.
+* python3.8-venv 
+
 ## Installation
 The following commands allow to install the Verilator-me tool
 ```
