@@ -62,7 +62,7 @@ end
 endgenerate
 
 assign valid_out = pipe_level[L-1].out[0];
-andg dut(
+and_g dut(
     .a(pipe_level[L-1].out[1 +: W]),
     .b(pipe_level[L-1].out[1+W +: W]),
     .out(out)

@@ -1,4 +1,4 @@
-module andg
+module and_g
 #
 (
     parameter W=8
