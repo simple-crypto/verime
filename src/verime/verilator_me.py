@@ -645,6 +645,13 @@ def __parse_design_files(src_files_list, out_dir):
         print(" Done.")
     print("")
 
+# Copy the .vh files from the include directory to the target directory
+def __copy_vh_files(inc_dir_list, target_dir):
+    # For each include dir in the provided list, copy all the '.vh' files
+    # to the target directory
+    for idr in inc_dir_list:
+        cmd = "cp {}/*.vh {}".format(idr,target_dir)
+        os.system(cmd)
 
 ## Create verilator config
 # Create Verilator top-level parameter
@@ -780,6 +787,7 @@ def __create_verime_package(
     __create_dir(pckg_hw_dir)
     __parse_design_files(design_files_used, pckg_hw_dir)
     __verilator_gen_config_file(pckg_cfg_file, generics_dict, top_module_path)
+    __copy_vh_files(inc_dir_list,pckg_hw_dir)
 
     # Create the config file for the dumping
     __jsoncfg_create(sigsp, pckg_data_format_file)
