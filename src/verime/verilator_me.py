@@ -650,8 +650,13 @@ def __copy_vh_files(inc_dir_list, target_dir):
     # For each include dir in the provided list, copy all the '.vh' files
     # to the target directory
     for idr in inc_dir_list:
-        cmd = "cp {}/*.vh {}".format(idr,target_dir)
-        os.system(cmd)
+        # Check all the file to check if it has the correct extension
+        for fname in os.listdir('{}'.format(idr)):
+            if fname.endswith('.vh'):
+                pathname = '{}/{}'.format(idr,fname)
+                cmd = "cp {} {}/".format(pathname,target_dir)
+                os.system(cmd)
+
 
 ## Create verilator config
 # Create Verilator top-level parameter
