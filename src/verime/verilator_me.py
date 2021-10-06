@@ -16,7 +16,9 @@ def __check_netn_validity(nn):
 
 # Check the validity of a cell
 def __check_celn_validity(cn):
-    return cn[0] != "$"
+    #return cn[0] != "$"
+    valid = not("$" in cn)
+    return valid
 
 
 def __create_mod_path(mod_path, mod_name):
@@ -26,8 +28,8 @@ def __create_mod_path(mod_path, mod_name):
         return "{}.{}".format(mod_path, mod_name)
 
 
-def __create_entry_path_name(mod_path, mod_name, net_name):
-    return "{}.{}".format(__create_mod_path(mod_path, mod_name), net_name)
+def __create_entry_path_name(mod_path, net_name):
+    return "{}.{}".format(mod_path, net_name)
 
 
 # Parse signal resulting of generation block
@@ -41,10 +43,10 @@ def __parse_generate_index(netpath):
             vidx += "{}_".format(e)
     return vidx
 
-
-def __create_match_entry(mod_path, mod_name, net_name, verime_name, width):
+def __create_match_entry(mod_path, net_name, verime_name, width):
+    print("DEBUG",mod_path)
     # Create the netpath
-    np = __create_entry_path_name(mod_path, mod_name, net_name)
+    np = __create_entry_path_name(mod_path, net_name)
     # Create the potential idx string (for Verilog generate blocks)
     idx_str = __parse_generate_index(np)
     if idx_str != "":
@@ -54,9 +56,17 @@ def __create_match_entry(mod_path, mod_name, net_name, verime_name, width):
     # Keep the width of the signal
     return [np, verime_name_ret, width]
 
+def __mod_name_from_path(filepath):
+    mod_name = filepath.split("/")[-1].split('.v')[0]
+    return mod_name
+
+# Get a list with unique element in the list provided
+def __get_list_unique(l):
+    return list(set(l))
 
 def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path):
     matches = []
+    list_mod_file = []
     # Iterate over each netname
     for netn in mod_jtree[mod_name]["netnames"].keys():
         # If the signal is valid (i.e., not for yosys purpose), proceed
@@ -69,29 +79,33 @@ def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path):
                 # Create a new match entry
                 ment = __create_match_entry(
                     mod_path,
-                    mod_inst,
                     netn,
                     mod_jtree[mod_name]["netnames"][netn]["attributes"][verime_attr],
                     len(mod_jtree[mod_name]["netnames"][netn]["bits"]),
                 )
                 matches += [ment]
+                # Add module to module file list
+                list_mod_file += [__get_pathfile(mod_jtree[mod_name]['attributes']['src'])]
 
     # Dig into the module cells for other signals in the architecture
     for cn in mod_jtree[mod_name]["cells"].keys():
         if __check_celn_validity(cn):
-            matches += __recur_search_verime_attr(
+            [m_cell,lmod_cell] = __recur_search_verime_attr(
                 mod_jtree,
                 mod_jtree[mod_name]["cells"][cn]["type"],
                 cn,
-                __create_mod_path(mod_path, mod_name),
+                __create_mod_path(mod_path, cn),
             )
+            matches += m_cell 
+            list_mod_file += lmod_cell
+            list_mod_file = __get_list_unique(list_mod_file)
     # Return
-    return matches
+    return [matches,list_mod_file]
 
 
-def search_verime_attr(ld_json_netlist, mod_name, mod_inst):
+def search_verime_attr(ld_json_netlist, top_name, mod_inst):
     return __recur_search_verime_attr(
-        ld_json_netlist["modules"], mod_name, mod_inst, ""
+        ld_json_netlist["modules"], top_name, mod_inst, top_name
     )
 
 
@@ -160,16 +174,19 @@ def __search_top_module(modules_list):
         if "top" in modules_list[e]["attributes"].keys():
             return e
 
-
 # Create a list of verilator header required for the cpp library.
-def __create_cpp_header_list(modules_list):
+def __create_cpp_header_list(top_module, sigsp_mod_path):
     # Create an empty list of header
     head_list = []
     # Search for top module
-    topm = __search_top_module(modules_list)
-    head_list += ["V{}.h".format(topm)]
-    for mn in modules_list.keys():
-        head_name = "V{}_{}.h".format(topm, mn)
+    head_list += ["V{}.h".format(top_module)]
+    # If one probed signal found, add top top header
+    if len(sigsp_mod_path)>0:
+        head_list += ["V{}_{}.h".format(top_module,top_module)]
+    # Add module header
+    for mn in sigsp_mod_path:
+        mod_name = __mod_name_from_path(mn)
+        head_name = "V{}_{}.h".format(top_module,mod_name)
         head_list += [head_name]
     # Add the Verilated.h header
     head_list += ["verilated.h"]
@@ -480,13 +497,18 @@ def build_verilator_library(netjson_fname, libname, out_dir):
 
     # Search for the signal to probe
     print("Identified signals paths:")
-    sigsp = search_verime_attr(netlist, tm, tm)
+    [sigsp, sigsp_mod_path] = search_verime_attr(netlist, tm, tm)
     for i, e in enumerate(sigsp):
         print("({}) {} ({})".format(i, e[0], e[2]))
     print("")
 
+    print("Identified module path probed:")
+    for i, e in enumerate(sigsp_mod_path):
+        print("({}) {}".format(i, e))
+    print("")
+        
     # Build the header list
-    head_list = __create_cpp_header_list(netlist["modules"])
+    head_list = __create_cpp_header_list(tm,sigsp_mod_path)
 
     # Build the declaration code
     lib_dec_code = __code_lib_declaration(libname, sigsp, head_list, tm)
