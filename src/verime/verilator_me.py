@@ -682,6 +682,12 @@ def __verilator_gen_config_file(config_file, generic_dict, top_module_path):
     with open(config_file, "w") as cf:
         json.dump(dic_cfg, cf)
 
+# Create the flag list for the verilator compilation
+def __verilator_compil_flags():
+    flags = ""
+    flags += "-Wno-WIDTH "
+    flags += "-Wno-PINMISSING"
+    return flags
 
 #### Argument parsing
 ## Parse te generics arguments
@@ -838,12 +844,15 @@ def __compile_verime_package(
     generics_params = cfg["GENERIC_TOP"]
     # Build the executable name
     used_exec_name = os.path.abspath(exec_name)
+    # Get the compilation flags for Verilator
+    vflags = __verilator_compil_flags()
     # Create global command
-    cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} -o {} {} {} {}".format(
+    cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} {} -o {} {} {} {}".format(
         cpath_new_value,
         verilator_exec_path,
         srcs_path,
         verilator_dir,
+        vflags,
         used_exec_name,
         generics_params,
         top_mod_path,
