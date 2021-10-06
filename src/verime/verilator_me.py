@@ -43,8 +43,11 @@ def __parse_generate_index(netpath):
             vidx += "{}_".format(e)
     return vidx
 
-def __create_match_entry(mod_path, net_name, verime_name, width):
-    print("DEBUG",mod_path)
+# Create the required specific class for the .cpp code
+def __class_name(list_srcs):   
+    top_path = 
+
+def __create_match_entry(mod_path, net_name, verime_name, width, req_spec_class):
     # Create the netpath
     np = __create_entry_path_name(mod_path, net_name)
     # Create the potential idx string (for Verilog generate blocks)
@@ -64,9 +67,9 @@ def __mod_name_from_path(filepath):
 def __get_list_unique(l):
     return list(set(l))
 
-def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path):
+def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path, list_srcs):
     matches = []
-    list_mod_file = []
+    new_list_srcs = []
     # Iterate over each netname
     for netn in mod_jtree[mod_name]["netnames"].keys():
         # If the signal is valid (i.e., not for yosys purpose), proceed
@@ -84,23 +87,21 @@ def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path):
                     len(mod_jtree[mod_name]["netnames"][netn]["bits"]),
                 )
                 matches += [ment]
-                # Add module to module file list
-                list_mod_file += [__get_pathfile(mod_jtree[mod_name]['attributes']['src'])]
 
     # Dig into the module cells for other signals in the architecture
     for cn in mod_jtree[mod_name]["cells"].keys():
         if __check_celn_validity(cn):
-            [m_cell,lmod_cell] = __recur_search_verime_attr(
+            new_list_srcs = list_srcs + [mod_jtree[mod_name]["cells"][cn]["attributes"]["src"]]
+            m_cell = __recur_search_verime_attr(
                 mod_jtree,
                 mod_jtree[mod_name]["cells"][cn]["type"],
                 cn,
                 __create_mod_path(mod_path, cn),
+                new_list_srcs
             )
             matches += m_cell 
-            list_mod_file += lmod_cell
-            list_mod_file = __get_list_unique(list_mod_file)
     # Return
-    return [matches,list_mod_file]
+    return matches
 
 
 def search_verime_attr(ld_json_netlist, top_name, mod_inst):
@@ -497,7 +498,7 @@ def build_verilator_library(netjson_fname, libname, out_dir):
 
     # Search for the signal to probe
     print("Identified signals paths:")
-    [sigsp, sigsp_mod_path] = search_verime_attr(netlist, tm, tm)
+    sigsp = search_verime_attr(netlist, tm, tm)
     for i, e in enumerate(sigsp):
         print("({}) {} ({})".format(i, e[0], e[2]))
     print("")
