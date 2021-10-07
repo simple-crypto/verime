@@ -161,8 +161,6 @@ def __create_cpp_model_var(netpath):
         if "[" in sp_string[idx_runner + runi]:
             while "[" in sp_string[idx_runner + runi]:
                 runi += 1
-            # Final addition
-            runi += 1
         netlist = sp_string[idx_runner : idx_runner + runi + 1]
         # Create name
         var_names += [__create_cpp_cw_name(netlist)]
