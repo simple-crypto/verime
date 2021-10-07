@@ -44,8 +44,19 @@ def __parse_generate_index(netpath):
     return vidx
 
 # Create the required specific class for the .cpp code
-def __class_name(list_srcs):   
-    top_path = 
+def __classes_names(list_srcs):   
+    classes_list = []
+    top_path = list_srcs[0]
+    top_module = __mod_name_from_path(top_path)
+    # Initiate name
+    class_prefix = "V{}".format(top_module,top_module)
+    # Add final module
+    for e in list_srcs[1:]:
+        mod_name = __mod_name_from_path(e)
+        class_name = "{}_{}".format(class_prefix,mod_name)
+        class_name = "{}.h".format(class_name)
+        classes_list += [class_name]
+    return classes_list
 
 def __create_match_entry(mod_path, net_name, verime_name, width, req_spec_class):
     # Create the netpath
@@ -57,7 +68,7 @@ def __create_match_entry(mod_path, net_name, verime_name, width, req_spec_class)
     else:
         verime_name_ret = verime_name
     # Keep the width of the signal
-    return [np, verime_name_ret, width]
+    return [np, verime_name_ret, width, req_spec_class]
 
 def __mod_name_from_path(filepath):
     mod_name = filepath.split("/")[-1].split('.v')[0]
@@ -79,12 +90,15 @@ def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path, list_src
                 verime_attr
                 in mod_jtree[mod_name]["netnames"][netn]["attributes"].keys()
             ):
+                # Update list
+                new_list_srcs = list_srcs + [mod_jtree[mod_name]["attributes"]["src"]]
                 # Create a new match entry
                 ment = __create_match_entry(
                     mod_path,
                     netn,
                     mod_jtree[mod_name]["netnames"][netn]["attributes"][verime_attr],
                     len(mod_jtree[mod_name]["netnames"][netn]["bits"]),
+                    __classes_names(new_list_srcs)
                 )
                 matches += [ment]
 
@@ -106,7 +120,7 @@ def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path, list_src
 
 def search_verime_attr(ld_json_netlist, top_name, mod_inst):
     return __recur_search_verime_attr(
-        ld_json_netlist["modules"], top_name, mod_inst, top_name
+        ld_json_netlist["modules"], top_name, mod_inst, top_name, []
     )
 
 
@@ -176,19 +190,16 @@ def __search_top_module(modules_list):
             return e
 
 # Create a list of verilator header required for the cpp library.
-def __create_cpp_header_list(top_module, sigsp_mod_path):
+def __create_cpp_header_list(top_module, classes_path):
     # Create an empty list of header
     head_list = []
     # Search for top module
     head_list += ["V{}.h".format(top_module)]
-    # If one probed signal found, add top top header
-    if len(sigsp_mod_path)>0:
+    if len(classes_path)>0:
         head_list += ["V{}_{}.h".format(top_module,top_module)]
     # Add module header
-    for mn in sigsp_mod_path:
-        mod_name = __mod_name_from_path(mn)
-        head_name = "V{}_{}.h".format(top_module,mod_name)
-        head_list += [head_name]
+    for mn in classes_path:
+        head_list += [mn]
     # Add the Verilated.h header
     head_list += ["verilated.h"]
     return head_list
@@ -503,13 +514,18 @@ def build_verilator_library(netjson_fname, libname, out_dir):
         print("({}) {} ({})".format(i, e[0], e[2]))
     print("")
 
-    print("Identified module path probed:")
-    for i, e in enumerate(sigsp_mod_path):
-        print("({}) {}".format(i, e))
+    # Create list of classes
+    classes_lists = []
+    for e in sigsp:
+        classes_lists += e[3]
+    uniq_lists = __get_list_unique(classes_lists)
+    print("Identified classes to include:")
+    for i,c in enumerate(uniq_lists):
+        print("({}) {}".format(i,c))
     print("")
         
     # Build the header list
-    head_list = __create_cpp_header_list(tm,sigsp_mod_path)
+    head_list = __create_cpp_header_list(tm,uniq_lists)
 
     # Build the declaration code
     lib_dec_code = __code_lib_declaration(libname, sigsp, head_list, tm)
