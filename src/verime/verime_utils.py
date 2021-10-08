@@ -46,11 +46,35 @@ def decode_data_sector(data_sec, config):
 
 ## Test
 if __name__ == "__main__":
-    print("Test of verime-utils")
+    import argparse
+    # Parsing arguments
+    parser = argparse.ArgumentParser(
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter
+            )
+    parser.add_argument(
+            "-cf",
+            "--config-file",
+            default=None,
+            help="Path to the config file."
+            )
+    parser.add_argument(
+            "-df",
+            "--data-file",
+            default=None,
+            help="Path to the data sampled."
+            )
+    parser.add_argument(
+            "-c",
+            "--clk",
+            default=0,
+            type=int,
+            help="Clock cycle to probe"
+
+    args = parser.parse_args()
 
     # Config
-    config_file = "test/my_funky_lib/config-dump.json"
-    data_file = "test/test.save"
+    config_file = args.config_file
+    data_file = args.data_file
 
     # Load config
     conf = load_cfg_file(config_file)
@@ -59,7 +83,7 @@ if __name__ == "__main__":
         print([hex(e) for e in f.read()])
 
     # Get data sector
-    data_sec = get_data_sector(data_file, conf, 1)
+    data_sec = get_data_sector(data_file, conf, args.clk)
 
     print("Sector")
     print([hex(e) for e in data_sec])

@@ -57,6 +57,11 @@ for(i=0;i<4;i=i+1) begin: li_pipe
         wire tmp;
         assign tmp = 1'b0;
         assign tddloop[4*i+j] = tmp;
+        and_g dutb(
+            .a(8'b0),
+            .b(8'b1),
+            .out()
+        );
     end
 end
 endgenerate
