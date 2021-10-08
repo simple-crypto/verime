@@ -69,6 +69,7 @@ if __name__ == "__main__":
             default=0,
             type=int,
             help="Clock cycle to probe"
+            )
 
     args = parser.parse_args()
 
