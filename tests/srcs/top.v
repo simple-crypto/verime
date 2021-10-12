@@ -73,6 +73,21 @@ and_g dut(
     .out(out)
 );
 
+(* verilator_me = "test_mat_bytes" *)
+wire [7:0] test_mat_bytes [3:0];
+assign test_mat_bytes[0] = 8'd3;
+assign test_mat_bytes[1] = 8'd5;
+assign test_mat_bytes[2] = 8'd4;
+assign test_mat_bytes[3] = 8'd6;
+
+(* verilator_me = "test_big_matrix" *)
+wire [127:0] mat_big [3:0];
+assign mat_big[0] = 128'd120;
+assign mat_big[1] = 128'd121;
+assign mat_big[2] = 128'd122;
+assign mat_big[3] = 128'd123;
+
+
 
 assign out_bis = {32'h01020304,32'h00112233,32'habcdabcd,32'h96541230};
 
