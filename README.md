@@ -23,7 +23,9 @@ In short, the workflow works as follows:
 ## Dependencies
 
 * [Yosys](http://www.clifford.at/yosys/) (Yosys 0.9+4081 tested)
-* [Verilator](https://www.veripool.org/verilator/) (Verilator 4.213 devel tested)
+* [Verilator](https://www.veripool.org/verilator/) (Verilator 4.213 devel
+  tested, should have been built with CFLAGS=-fPIC for shared library
+  generation)
 * Python (Python 3.8.10 tested)
 * bash on Unix system (Ubuntu 20.04.3)
 
