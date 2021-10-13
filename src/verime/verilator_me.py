@@ -241,21 +241,23 @@ def __code_SimModel(sim_top_module):
     )
 
 
-# Build the code for the create_new_model() function
-def __code_h_create_new_model():
-    h_code = "SimModel create_new_model();\n"
+# Build the code for the new_model_ptr() function
+def __code_h_new_model_ptr():
+    h_code = "SimModel * new_model_ptr();\n"
     return h_code
 
 
-def __code_cpp_create_new_model(sim_top_module):
-    cpp_code = """SimModel create_new_model() {{
+def __code_cpp_new_model_ptr(sim_top_module):
+    cpp_code = """SimModel * new_model_ptr() {{
     VerilatedContext * contextp = new VerilatedContext;
     V{} * top;
     top = new V{}(contextp);
     SimModel sm;
     sm.contextp = contextp;
     sm.vtop = top;
-    return sm;
+    SimModel * sm_ptr = (struct SimModel *) malloc(sizeof(struct SimModel));
+    memcpy(sm_ptr,&sm,sizeof(struct SimModel));
+    return sm_ptr;
 }}\n""".format(
         sim_top_module, sim_top_module
     )
@@ -264,13 +266,13 @@ def __code_cpp_create_new_model(sim_top_module):
 
 # Build the code for the sim_clock_cycle() function
 def __code_h_sim_clock_cycle():
-    h_code = "void sim_clock_cycle(SimModel sm);\n"
+    h_code = "void sim_clock_cycle(SimModel * sm);\n"
     return h_code
 
 
 def __code_cpp_sim_clock_cycle(sim_top_module):
-    cpp_code = """void sim_clock_cycle(SimModel sm){{
-    V{} * top = sm.vtop;
+    cpp_code = """void sim_clock_cycle(SimModel * sm){{
+    V{} * top = sm->vtop;
     top->clk=0;
     top->eval();
     top->clk=1;
@@ -312,12 +314,12 @@ def __code_accessor_declaration(entry):
     # Generate the accessor function name
     fname = "get_{}".format(entry[1])
     # Generate the global declaration
-    fdec = "{} {}(SimModel sm)".format(return_type, fname)
+    fdec = "{} {}(SimModel * sm)".format(return_type, fname)
     return fdec
 
 
 def __code_accessor_definition(entry):
-    fdef = "    return sm.vtop->{};".format(
+    fdef = "    return sm->vtop->{};".format(
         __create_cpp_model_path(__create_cpp_model_var(entry[0]))
     )
     return fdef
@@ -364,17 +366,30 @@ def __code_ProbedState(entries):
     struct_code += "} ProbedState;\n"
     return struct_code
 
+# Build the code for the new_probed_state_ptr() function
+def __code_h_new_probed_state_ptr():
+    h_code = "ProbedState * new_probed_state_ptr();\n"
+    return h_code
+
+def __code_cpp_new_probed_state_ptr():
+    cpp_code = """ProbedState * new_probed_state_ptr() {
+    ProbedState prb_st;
+    ProbedState * prb_st_ptr = (ProbedState *) malloc(sizeof(ProbedState));
+    memcpy(prb_st_ptr,&prb_st,sizeof(ProbedState));
+    return prb_st_ptr;
+}\n"""
+    return cpp_code
 
 # Code for the link_state() function
 def __code_link_state_declaration():
-    def_code = "void link_state(SimModel sm, ProbedState * state)"
+    def_code = "void link_state(SimModel * sm, ProbedState * state)"
     return def_code
 
 
 def __code_link_state_definition(entries):
     def_code = "{} {{\n".format(__code_link_state_declaration())
     # For each entry write the bounding
-    for e in entries: #DEBUG HERE
+    for e in entries: 
         if e[2] > 64:
             if e[0][-1]=="]":
                 # In that case, should convert manually the pointer
@@ -383,15 +398,15 @@ def __code_link_state_definition(entries):
                 if e[2] % 32 != 0:
                     am32w += 1
                 # Format code
-                code_e = "state->{} = (uint32_t (*)[{}]) &sm.vtop->{}".format(
+                code_e = "state->{} = (uint32_t (*)[{}]) &sm->vtop->{}".format(
                     e[1], am32w, __create_cpp_model_path(__create_cpp_model_var(e[0]))
                 )
             else:
-                code_e = "state->{} = &sm.vtop->{}".format(
+                code_e = "state->{} = &sm->vtop->{}".format(
                     e[1], __create_cpp_model_path(__create_cpp_model_var(e[0]))
                 )
         else:
-            code_e = "state->{} = &sm.vtop->{}".format(
+            code_e = "state->{} = &sm->vtop->{}".format(
                 e[1], __create_cpp_model_path(__create_cpp_model_var(e[0]))
             )
 
@@ -471,9 +486,9 @@ def __code_lib_declaration(libname, psgis_entries, header_list, topm):
     fdec_code = ""
     fdec_code += __code_SimModel(topm) + "\n"
     fdec_code += __code_ProbedState(psgis_entries) + "\n"
-    fdec_code += __code_h_create_new_model() + "\n"
+    fdec_code += __code_h_new_model_ptr() + "\n"
+    fdec_code += __code_h_new_probed_state_ptr() + "\n"
     fdec_code += __code_h_sim_clock_cycle() + "\n"
-    fdec_code += __code_h_delete_model() + "\n"
     fdec_code += __code_h_link_state() + "\n"
     fdec_code += __code_h_write_probed_state() + "\n"
     # Create the accessor declaration
@@ -493,9 +508,9 @@ def __code_lib_definition(libname, psgis_entries, topm):
     hinc = '#include  "{}.h"\n'.format(libname)
     # Create the functions definitions
     fdef_code = ""
-    fdef_code += __code_cpp_create_new_model(topm) + "\n"
+    fdef_code += __code_cpp_new_model_ptr(topm) + "\n"
+    fdef_code += __code_cpp_new_probed_state_ptr() + "\n"
     fdef_code += __code_cpp_sim_clock_cycle(topm) + "\n"
-    fdef_code += __code_cpp_delete_model() + "\n"
     fdef_code += __code_cpp_link_state(psgis_entries) + "\n"
     fdef_code += __code_cpp_write_probed_state(psgis_entries) + "\n"
     # Create accessors definition
