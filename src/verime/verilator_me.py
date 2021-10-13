@@ -738,7 +738,8 @@ def __verilator_gen_config_file(config_file, generic_dict, top_module_path):
 def __verilator_compil_flags():
     flags = ""
     flags += "-Wno-WIDTH "
-    flags += "-Wno-PINMISSING"
+    flags += "-Wno-PINMISSING "
+    flags += "-CFLAGS -fPIC"
     return flags
 
 #### Argument parsing
