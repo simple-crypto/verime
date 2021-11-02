@@ -1,4 +1,5 @@
 import json
+import ctypes
 
 # Load of the configuration file and return the cfg instance
 def load_cfg_file(cfg_file_path):
@@ -42,6 +43,15 @@ def decode_data_sector(data_sec, config):
         sigs_dic[k] = byte2bits(current_bytes, cu_data_bits)
         processed_bytes += cu_data_bytes
     return sigs_dic
+
+# Load and reload the ctypes library
+def load_library(lib_path):
+    return ctypes.CDLL(lib_path)
+
+# Create a ctype string buffer with the provided String
+def get_csb(string):
+    sb = string.encode('utf-8')
+    return ctypes.create_string_buffer(sb)
 
 
 ## Test
