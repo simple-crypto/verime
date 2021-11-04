@@ -2,6 +2,9 @@ import json
 import ctypes
 import os
 
+from math import ceil
+import numpy as np
+
 # Load of the configuration file and return the cfg instance
 def load_cfg_file(cfg_file_path):
     with open(cfg_file_path, "r") as f:
@@ -98,7 +101,7 @@ def byte2bits(bytestr, am_bits):
         by_idx = idx // 8
         bi_idx = idx % 8
         bits_array[idx] = (bytestr[by_idx] >> bi_idx) & 0x1
-    return bits_array
+    return np.array(bits_array)
 
 # Decode data_sector
 def decode_data_sector(data_sec, config):
@@ -133,6 +136,28 @@ def decode_data_sectors(data_secs, config):
             return buff
     else:
         return decode_data_sector(data_secs,config)
+
+# Return a vector of byte from a vector of bits. The bits 
+# in the vector are ordered in little endian.
+def bits2bytes(bvec):
+    lb = len(bvec)
+    am_bytes = ceil(lb / 8)
+    # Padding
+    am_bit_padding = 8*am_bytes-lb
+    if am_bit_padding>0:
+        vp = am_bit_padding*[0]
+        p_bvec = bvec + vp
+    else:
+        p_bvec = bvec
+    # Build the bytes vec
+    byte_vec = am_bytes*[0]
+    for b in range(am_bytes):
+        tmp = 0
+        for i in range(8):
+            bit = p_bvec[8*b+i]
+            tmp += (2**i)*bit
+        byte_vec[b] = tmp
+    return byte_vec
 
 # Load and reload the ctypes library
 def load_library(lib_path):
