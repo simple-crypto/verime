@@ -445,7 +445,7 @@ def __code_fwrite_probed_state_elem(entry):
         sizew = 4
         amw = 1
     elif 32 < l and l <= 64:
-        sizew = 16
+        sizew = 8
         amw = 1
     else:
         longword = True

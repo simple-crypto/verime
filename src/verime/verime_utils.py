@@ -204,9 +204,6 @@ if __name__ == "__main__":
     # Load config
     conf = load_cfg_file(config_file)
 
-    with open(data_file, "rb") as f:
-        print([hex(e) for e in f.read()])
-
     # Get data sector
     data_sec = get_data_sector(data_file, conf, args.clk)
 
