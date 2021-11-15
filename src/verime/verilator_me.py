@@ -521,9 +521,19 @@ def __code_lib_definition(libname, psgis_entries, topm):
     def_code = "{}\n{}".format(hinc, fdef_code)
     return def_code
 
+# Build the generics string to append to the classes name.
+# Required when generics are used -> verilator is appending 
+# a pair <generic><value> to the classes name in that case
+def __generics_string(generics_dict):
+    str_generics = ''
+    generics_name = generics_dict.keys()
+    for gn in generics_name:
+        gv = generics_dict[gn]
+        str_generics = '{}__{}{}'.format(str_generics,gn.upper(),gv)
+    return str_generics
 
 # Create the library files
-def build_verilator_library(netjson_fname, libname, out_dir):
+def build_verilator_library(netjson_fname, libname, out_dir, generics_dict):
     print("#########################################")
     print("# Generating the Verilator library '{}' #".format(libname))
     print("#########################################\n")
@@ -551,6 +561,24 @@ def build_verilator_library(netjson_fname, libname, out_dir):
     for i,c in enumerate(uniq_lists):
         print("({}) {}".format(i,c))
     print("")
+
+    # Format classes list with generics
+    if len(generics_dict)>0:
+        n_uniq_lists = []
+        gstr = __generics_string(generics_dict)
+        # Iterate over each classe name
+        for cle in uniq_lists:
+            name_class = cle.split(".h")[0]
+            n_name_class = "{}{}.h".format(name_class,gstr)
+            n_uniq_lists += [n_name_class]
+        # Set new value
+        uniq_lists = n_uniq_lists
+    
+    print("Formatted classes to include:")
+    for i,c in enumerate(uniq_lists):
+        print("({}) {}".format(i,c))
+    print("")
+    
         
     # Build the header list
     head_list = __create_cpp_header_list(tm,uniq_lists)
@@ -857,7 +885,7 @@ def __create_verime_package(
 
     # Build the library files
     [design_files_used, sigsp] = build_verilator_library(
-        json_out_path, pckg_name, pckg_sw_dir
+        json_out_path, pckg_name, pckg_sw_dir, generics_dict
     )
 
     #### Generation of the files for Verilator
