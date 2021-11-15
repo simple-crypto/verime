@@ -841,6 +841,14 @@ def __jsoncfg_create(psgis_entries, filename):
     with open(filename, "w") as f:
         json.dump(cfg_dic, f)
 
+# Build the string to pass to verilator for the pre-processor 
+# define
+def __pp_define(dic_defines):
+    str_defines = ""
+    vars_define = dic_defines.keys()
+    for vd in vars_define:
+        str_defines = '{} -D{}={}'.format(str_defines,vd,dic_defines[vd])
+    return str_defines
 
 #### Main functions
 ## Generate the verilator-me package
@@ -908,6 +916,7 @@ def __compile_verime_package(
     exec_name,
     verilator_dir,
     verilator_exec_path,
+    dic_define
 ):
     ## Reset the Verilator workspace directory
     __reset_and_create_dir(verilator_dir)
@@ -938,17 +947,20 @@ def __compile_verime_package(
     top_mod_path = "{}/hw-src/{}".format(vpack_abs_path, cfg["TOP"])
     srcs_path = "{}/hw-src".format(vpack_abs_path)
     generics_params = cfg["GENERIC_TOP"]
+    # Build the pre-processor define list
+    defines_str = __pp_define(dic_define) 
     # Build the executable name
     used_exec_name = os.path.abspath(exec_name)
     # Get the compilation flags for Verilator
     vflags = __verilator_compil_flags()
     # Create global command
-    cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} {} -o {} {} {} {}".format(
+    cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} {} {} -o {} {} {} {}".format(
         cpath_new_value,
         verilator_exec_path,
         srcs_path,
         verilator_dir,
         vflags,
+        defines_str,
         used_exec_name,
         generics_params,
         top_mod_path,
@@ -989,7 +1001,15 @@ if __name__ == "__main__":
         default=[],
         action="append",
         nargs="+",
-        help="Generic value, as -g<Id>=<Value>.",
+        help="Verilog generic value, as -g<Id>=<Value>.",
+    )
+    parser.add_argument(
+        "-d",
+        "--define",
+        default=[],
+        action="append",
+        nargs="+",
+        help="Preprocessor define, as -d<Id>=<Value>.",
     )
     parser.add_argument(
         "-top",
@@ -1053,7 +1073,8 @@ if __name__ == "__main__":
         list_cpp += [e[0]]
 
     dic_gen = __args_parse_generics(args.generics)
-
+    dic_define = __args_parse_generics(args.define)
+    
     # Check if it is compilation of building
     if len(args.cpp_files) == 0:
         # Building package
@@ -1075,4 +1096,5 @@ if __name__ == "__main__":
             args.exec,
             args.verilator_work,
             args.verilator_exec,
+            dic_define
         )
