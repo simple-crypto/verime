@@ -243,12 +243,12 @@ def __code_SimModel(sim_top_module):
 
 # Build the code for the new_model_ptr() function
 def __code_h_new_model_ptr():
-    h_code = "SimModel * new_model_ptr();\n"
+    h_code = "extern \"C\" SimModel * new_model_ptr();\n"
     return h_code
 
 
 def __code_cpp_new_model_ptr(sim_top_module):
-    cpp_code = """SimModel * new_model_ptr() {{
+    cpp_code = """extern \"C\" SimModel * new_model_ptr() {{
     VerilatedContext * contextp = new VerilatedContext;
     V{} * top;
     top = new V{}(contextp);
@@ -368,15 +368,48 @@ def __code_ProbedState(entries):
 
 # Build the code for the new_probed_state_ptr() function
 def __code_h_new_probed_state_ptr():
-    h_code = "ProbedState * new_probed_state_ptr();\n"
+    h_code = "extern \"C\" ProbedState * new_probed_state_ptr();\n"
     return h_code
 
 def __code_cpp_new_probed_state_ptr():
-    cpp_code = """ProbedState * new_probed_state_ptr() {
+    cpp_code = """extern \"C\" ProbedState * new_probed_state_ptr() {
     ProbedState prb_st;
     ProbedState * prb_st_ptr = (ProbedState *) malloc(sizeof(ProbedState));
     memcpy(prb_st_ptr,&prb_st,sizeof(ProbedState));
     return prb_st_ptr;
+}\n"""
+    return cpp_code
+
+# Build the code for the openfile function used in python wrapper
+def __code_h_openfile():
+    h_code = "extern \"C\" FILE * openfile(const char * fn);\n"
+    return h_code
+
+def __code_cpp_openfile():
+    cpp_code = """extern \"C\" FILE * openfile(const char * fn){
+    return fopen(fn,\"w\");
+}\n"""
+    return cpp_code
+
+# Build the code for the closefile function used in python wrapper
+def __code_h_closefile():
+    h_code = "extern \"C\" int closefile(FILE * fp);\n"
+    return h_code
+
+def __code_cpp_closefile():
+    cpp_code = """extern \"C\" int closefile(FILE * fp){
+    return fclose(fp);
+}\n"""
+    return cpp_code
+
+# Build the code for the free_ptr function used in python wrapper
+def __code_h_free_ptr():
+    h_code = "extern \"C\" void free_ptr(void * ptr);\n"
+    return h_code
+
+def __code_cpp_free_ptr():
+    cpp_code = """extern \"C\" void free_ptr(void * ptr){
+    free(ptr);
 }\n"""
     return cpp_code
 
@@ -488,6 +521,9 @@ def __code_lib_declaration(libname, psgis_entries, header_list, topm):
     fdec_code += __code_ProbedState(psgis_entries) + "\n"
     fdec_code += __code_h_new_model_ptr() + "\n"
     fdec_code += __code_h_new_probed_state_ptr() + "\n"
+    fdec_code += __code_h_openfile() + "\n"
+    fdec_code += __code_h_closefile() + "\n"
+    fdec_code += __code_h_free_ptr() + "\n"
     fdec_code += __code_h_sim_clock_cycle() + "\n"
     fdec_code += __code_h_link_state() + "\n"
     fdec_code += __code_h_write_probed_state() + "\n"
@@ -510,6 +546,9 @@ def __code_lib_definition(libname, psgis_entries, topm):
     fdef_code = ""
     fdef_code += __code_cpp_new_model_ptr(topm) + "\n"
     fdef_code += __code_cpp_new_probed_state_ptr() + "\n"
+    fdef_code += __code_cpp_openfile() + "\n"
+    fdef_code += __code_cpp_closefile() + "\n"
+    fdef_code += __code_cpp_free_ptr() + "\n"
     fdef_code += __code_cpp_sim_clock_cycle(topm) + "\n"
     fdef_code += __code_cpp_link_state(psgis_entries) + "\n"
     fdef_code += __code_cpp_write_probed_state(psgis_entries) + "\n"
@@ -847,7 +886,7 @@ def __pp_define(dic_defines):
     str_defines = ""
     vars_define = dic_defines.keys()
     for vd in vars_define:
-        str_defines = '{} -D{}={}'.format(str_defines,vd,dic_defines[vd])
+        str_defines = '{} -CFLAGS -D{}={}'.format(str_defines,vd,dic_defines[vd])
     return str_defines
 
 #### Main functions
@@ -1009,7 +1048,7 @@ if __name__ == "__main__":
         default=[],
         action="append",
         nargs="+",
-        help="Preprocessor define, as -d<Id>=<Value>.",
+        help="C++ preprocessor define, as -d<Id>=<Value>.",
     )
     parser.add_argument(
         "-top",
