@@ -509,6 +509,136 @@ def __code_h_write_probed_state():
 def __code_cpp_write_probed_state(entries):
     return "{}\n".format(__code_definition_write_probed_state(entries))
 
+# Code to generate the code for the ProbedStateBuffer
+def __code_memcpy_probed_state_elem(entry,offset_bytes):
+    l = entry[2]
+    longword = False
+    if l <= 8:
+        sizew = 1
+        amw = 1
+    elif 8 < l and l <= 16:
+        sizew = 2
+        amw = 1
+    elif 16 < l and l <= 32:
+        sizew = 4
+        amw = 1
+    elif 32 < l and l <= 64:
+        sizew = 8
+        amw = 1
+    else:
+        longword = True
+        sizew = 4
+        amw = l // 32
+        if l % 32 != 0:
+            amw += 1
+    if longword:
+        return "memcpy(&psb->buffer[psb->am_ps][{}],ps->{}[0],{})".format(offset_bytes,entry[1], sizew*amw)
+    else:
+        return "memcpy(&psb->buffer[psb->am_ps][{}],ps->{},{})".format(offset_bytes,entry[1], sizew*amw)
+
+def __code_core_write_probed_state_to_buffer(entries):
+    def_core_code = ""
+    offset_bytes = 0
+    for e in entries:
+        def_core_code += "    {};\n".format(__code_memcpy_probed_state_elem(e,offset_bytes))
+        offset_bytes += __sizesig2bytes(e[2])
+    return def_core_code
+     
+
+def __sizesig2bytes(l_bits):
+    if l_bits <= 8:
+        sizew = 1
+        amw = 1
+    elif 8 < l_bits and l_bits <= 16:
+        sizew = 2
+        amw = 1
+    elif 16 < l_bits and l_bits <= 32:
+        sizew = 4
+        amw = 1
+    elif 32 < l_bits and l_bits <= 64:
+        sizew = 8
+        amw = 1
+    else:
+        sizew = 4
+        amw = l_bits // 32
+        if l_bits % 32 != 0:
+            amw += 1
+    return amw * sizew
+
+def __size_probed_state_byte(psig_entries):
+    am_bytes = 0
+    for e in psig_entries:
+        am_bytes += __sizesig2bytes(e[2])
+    return am_bytes
+
+def __code_ProbedStateBuffer(psig_entries):
+    sizebyte_ps = __size_probed_state_byte(psig_entries)
+    struct_code = """typedef struct {{
+    char (* buffer)[{}];
+    uint32_t am_ps;
+}} ProbedStateBuffer;\n""".format(sizebyte_ps)
+    return struct_code
+
+def __code_h_new_ProbedStateBuffer_ptr():
+    h_code = "extern \"C\" ProbedStateBuffer * new_probed_state_buffer_ptr(uint32_t n);\n"
+    return h_code
+
+def __code_cpp_new_ProbedStateBuffer_ptr(psig_entries):
+    sizebyte_ps = __size_probed_state_byte(psig_entries)
+    cpp_code = """extern \"C\" ProbedStateBuffer * new_probed_state_buffer_ptr(uint32_t n){{
+    char (* buffer)[{}] = (char (*) [{}]) malloc(n*{});
+    ProbedStateBuffer * psb_ptr = (ProbedStateBuffer *) malloc(sizeof(ProbedStateBuffer));
+    psb_ptr->buffer = buffer;
+    psb_ptr->am_ps = 0;
+    return psb_ptr;
+    }}\n""".format(sizebyte_ps,sizebyte_ps,sizebyte_ps)
+    return cpp_code
+
+def __code_h_delete_ProbedStateBuffer_ptr():
+    h_code = "extern \"C\" void delete_probed_state_buffer_ptr(ProbedStateBuffer * ptr);\n"
+    return h_code
+
+def __code_cpp_delete_ProbedStateBuffer_ptr():
+    cpp_code = """extern \"C\" void delete_probed_state_buffer_ptr(ProbedStateBuffer * ptr){
+    free(ptr->buffer);
+    free(ptr);
+}\n"""
+    return cpp_code
+
+def __code_h_write_probed_state_to_buffer():
+    h_code = "void write_probed_state_to_buffer(ProbedState * ps, ProbedStateBuffer * psb);\n"
+    return h_code
+
+def __code_cpp_write_probed_state_to_buffer(psig_entries):
+    cpp_code = "void write_probed_state_to_buffer(ProbedState * ps, ProbedStateBuffer * psb){\n"
+    core_copy_code = __code_core_write_probed_state_to_buffer(psig_entries)
+    cpp_code += core_copy_code
+    cpp_code += "    psb->am_ps += 1;\n}\n"
+    return cpp_code
+
+def __code_h_reset_ProbedStateBuffer():
+    h_code = "void reset_probed_state_buffer(ProbedStateBuffer * psb);\n"
+    return h_code
+
+def __code_cpp_reset_ProbedStateBuffer():
+    cpp_code = """void reset_probed_state_buffer(ProbedStateBuffer * psb){
+    psb->am_ps = 0;
+}\n"""
+    return cpp_code
+
+def __code_h_flush_probed_state_buffer():
+    h_code = "extern \"C\" void flush_probed_state_buffer(ProbedStateBuffer * psb, FILE * stream);\n"
+    return h_code
+
+def __code_cpp_flush_probed_state_buffer(psig_entries):
+    sizebyte_ps = __size_probed_state_byte(psig_entries)
+    cpp_code = """extern \"C\" void flush_probed_state_buffer(ProbedStateBuffer * psb, FILE * stream){{
+    for(uint32_t i=0; i<psb->am_ps; i++) {{
+        fwrite(&psb->buffer[i],{},1,stream);
+    }}
+    reset_probed_state_buffer(psb);
+}}\n""".format(sizebyte_ps)
+    return cpp_code
 
 # Build the library header file based on the list
 # of probed signals
@@ -519,8 +649,14 @@ def __code_lib_declaration(libname, psgis_entries, header_list, topm):
     fdec_code = ""
     fdec_code += __code_SimModel(topm) + "\n"
     fdec_code += __code_ProbedState(psgis_entries) + "\n"
+    fdec_code += __code_ProbedStateBuffer(psgis_entries) + "\n"
     fdec_code += __code_h_new_model_ptr() + "\n"
     fdec_code += __code_h_new_probed_state_ptr() + "\n"
+    fdec_code += __code_h_new_ProbedStateBuffer_ptr() + "\n"
+    fdec_code += __code_h_delete_ProbedStateBuffer_ptr() + "\n"
+    fdec_code += __code_h_write_probed_state_to_buffer() + "\n"
+    fdec_code += __code_h_reset_ProbedStateBuffer() + "\n"
+    fdec_code += __code_h_flush_probed_state_buffer() + "\n"
     fdec_code += __code_h_openfile() + "\n"
     fdec_code += __code_h_closefile() + "\n"
     fdec_code += __code_h_free_ptr() + "\n"
@@ -546,6 +682,11 @@ def __code_lib_definition(libname, psgis_entries, topm):
     fdef_code = ""
     fdef_code += __code_cpp_new_model_ptr(topm) + "\n"
     fdef_code += __code_cpp_new_probed_state_ptr() + "\n"
+    fdef_code += __code_cpp_new_ProbedStateBuffer_ptr(psgis_entries) + "\n"
+    fdef_code += __code_cpp_delete_ProbedStateBuffer_ptr() + "\n"
+    fdef_code += __code_cpp_write_probed_state_to_buffer(psgis_entries) + "\n"
+    fdef_code += __code_cpp_reset_ProbedStateBuffer() + "\n"
+    fdef_code += __code_cpp_flush_probed_state_buffer(psgis_entries) + "\n"
     fdef_code += __code_cpp_openfile() + "\n"
     fdef_code += __code_cpp_closefile() + "\n"
     fdef_code += __code_cpp_free_ptr() + "\n"
