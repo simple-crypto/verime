@@ -87,6 +87,26 @@ assign mat_big[1] = 128'd121;
 assign mat_big[2] = 128'd122;
 assign mat_big[3] = 128'd123;
 
+(* verilator_me = "test_wire_u8" *)
+wire test_wire_uint8;
+assign test_wire_uint8 = 1'b1;
+
+(* verilator_me = "test_bus_u8" *)
+wire [6:0] test_bus_uint8;
+assign test_bus_uint8 = 7'd5;
+
+(* verilator_me = "test_bus_u16" *)
+wire [11:0] test_bus_uint16;
+assign test_bus_uint16 = 12'd301;
+
+(* verilator_me = "test_bus_u32" *)
+wire [24:0] test_bus_uint32;
+assign test_bus_uint32 = 25'd1234;
+
+(* verilator_me = "test_long_bus_u32" *)
+wire [71:0] test_long_bus_u32;
+assign test_long_bus_u32 = 72'd125365;
+
 
 
 assign out_bis = {32'h01020304,32'h00112233,32'habcdabcd,32'h96541230};

@@ -197,7 +197,7 @@ def __create_cpp_header_list(top_module, classes_path):
     head_list = []
     # Search for top module
     head_list += ["V{}.h".format(top_module)]
-    if len(classes_path)>0:
+    if True: #len(classes_path)>0:
         head_list += ["V{}_{}.h".format(top_module,top_module)]
     # Add module header
     for mn in classes_path:
@@ -424,7 +424,7 @@ def __code_link_state_definition(entries):
     # For each entry write the bounding
     for e in entries: 
         if e[2] > 64:
-            if e[0][-1]=="]":
+            if True:#e[0][-1]=="]":
                 # In that case, should convert manually the pointer
                 # Compute the amount of words
                 am32w = e[2] // 32
@@ -990,9 +990,9 @@ def __am_bytes(size_bits):
     elif 32 < size_bits and size_bits <= 64:
         return 8
     else:
-        am_w32 = size_bits // 32
-        if size_bits % 32:
-            am_w32 + 1
+        am_w32 = int(size_bits // 32)
+        if (size_bits % 32)!=0:
+            am_w32 += 1
         return 4 * am_w32
 
 
