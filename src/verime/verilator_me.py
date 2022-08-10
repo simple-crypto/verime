@@ -510,7 +510,7 @@ def __code_cpp_write_probed_state(entries):
     return "{}\n".format(__code_definition_write_probed_state(entries))
 
 # Code to generate the code for the ProbedStateBuffer
-def __code_memcpy_probed_state_elem(entry,offset_bytes):
+def __code_memcpy_probed_state_elem(entry,offset_bytes,target_ptr):
     l = entry[2]
     longword = False
     if l <= 8:
@@ -531,19 +531,30 @@ def __code_memcpy_probed_state_elem(entry,offset_bytes):
         amw = l // 32
         if l % 32 != 0:
             amw += 1
+    # Generate the format with target
+    target_format = target_ptr.format(offset_bytes)
+    source_format = "ps->{}".format(entry[1])
+    size_format = "{}".format(sizew*amw) 
     if longword:
-        return "memcpy(&psb->buffer[psb->am_ps][{}],ps->{}[0],{})".format(offset_bytes,entry[1], sizew*amw)
-    else:
-        return "memcpy(&psb->buffer[psb->am_ps][{}],ps->{},{})".format(offset_bytes,entry[1], sizew*amw)
+        source_format += "[0]"
+    memcpy_format = "memcpy({},{},{})".format(
+            target_format,
+            source_format,
+            size_format
+            )
+    return memcpy_format
 
-def __code_core_write_probed_state_to_buffer(entries):
+def __code_core_write_probed_state_to_buffer(entries,target_ptr):
     def_core_code = ""
     offset_bytes = 0
     for e in entries:
-        def_core_code += "    {};\n".format(__code_memcpy_probed_state_elem(e,offset_bytes))
+        def_core_code += "    {};\n".format(__code_memcpy_probed_state_elem(
+            e,
+            offset_bytes,
+            target_ptr
+            ))
         offset_bytes += __sizesig2bytes(e[2])
     return def_core_code
-     
 
 def __sizesig2bytes(l_bits):
     if l_bits <= 8:
@@ -611,9 +622,26 @@ def __code_h_write_probed_state_to_buffer():
 
 def __code_cpp_write_probed_state_to_buffer(psig_entries):
     cpp_code = "void write_probed_state_to_buffer(ProbedState * ps, ProbedStateBuffer * psb){\n"
-    core_copy_code = __code_core_write_probed_state_to_buffer(psig_entries)
+    core_copy_code = __code_core_write_probed_state_to_buffer(
+            psig_entries,
+            '&psb->buffer[psb->am_ps][{}]'
+            )
     cpp_code += core_copy_code
     cpp_code += "    psb->am_ps += 1;\n}\n"
+    return cpp_code
+
+def __code_h_write_probed_state_to_charbuffer():
+    h_code = "void write_probed_state_to_charbuffer(char * cb, ProbedState * ps);"
+    return h_code
+
+def __code_cpp_write_probed_state_to_charbuffer(psig_entries):
+    cpp_code = "void write_probed_state_to_charbuffer(char * cb, ProbedState * ps){\n"
+    core_copy_code = __code_core_write_probed_state_to_buffer(
+            psig_entries,
+            "&cb[{}]"
+            )
+    cpp_code += core_copy_code
+    cpp_code += "}\n"
     return cpp_code
 
 def __code_h_reset_ProbedStateBuffer():
@@ -655,6 +683,7 @@ def __code_lib_declaration(libname, psgis_entries, header_list, topm):
     fdec_code += __code_h_new_ProbedStateBuffer_ptr() + "\n"
     fdec_code += __code_h_delete_ProbedStateBuffer_ptr() + "\n"
     fdec_code += __code_h_write_probed_state_to_buffer() + "\n"
+    fdec_code += __code_h_write_probed_state_to_charbuffer() + "\n"
     fdec_code += __code_h_reset_ProbedStateBuffer() + "\n"
     fdec_code += __code_h_flush_probed_state_buffer() + "\n"
     fdec_code += __code_h_openfile() + "\n"
@@ -685,6 +714,7 @@ def __code_lib_definition(libname, psgis_entries, topm):
     fdef_code += __code_cpp_new_ProbedStateBuffer_ptr(psgis_entries) + "\n"
     fdef_code += __code_cpp_delete_ProbedStateBuffer_ptr() + "\n"
     fdef_code += __code_cpp_write_probed_state_to_buffer(psgis_entries) + "\n"
+    fdef_code += __code_cpp_write_probed_state_to_charbuffer(psgis_entries) + "\n"
     fdef_code += __code_cpp_reset_ProbedStateBuffer() + "\n"
     fdef_code += __code_cpp_flush_probed_state_buffer(psgis_entries) + "\n"
     fdef_code += __code_cpp_openfile() + "\n"

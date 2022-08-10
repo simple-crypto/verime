@@ -55,7 +55,7 @@ for(i=0;i<4;i=i+1) begin: li_pipe
     for(j=0;j<4;j=j+1) begin: lj_pipe
         (* verilator_me = "tmp_double_loops" *)
         wire tmp;
-        assign tmp = 1'b0;
+        assign tmp = i ^ j;
         assign tddloop[4*i+j] = tmp;
         and_g dutb(
             .a(8'b0),
