@@ -8,6 +8,7 @@ import argparse
 # Attributed signal will be considered in the file
 # generation
 verime_attr = "verilator_me"
+probed_state_c_var = "probed_state_bytes"
 
 # Check the validity of a signal
 def __check_netn_validity(nn):
@@ -688,6 +689,11 @@ def __code_cpp_flush_probed_state_buffer(psig_entries):
 }}\n""".format(sizebyte_ps)
     return cpp_code
 
+def __code_h_probed_state_bytes(psig_entries):
+    sizebyte_ps = __size_probed_state_byte(psig_entries)
+    h_code = "const uint32_t {} = {};\n".format(probed_state_c_var,sizebyte_ps)
+    return h_code
+
 # Build the library header file based on the list
 # of probed signals
 def __code_lib_declaration(libname, psgis_entries, header_list, topm):
@@ -695,6 +701,7 @@ def __code_lib_declaration(libname, psgis_entries, header_list, topm):
     hinc = __code_include_header(header_list)
     # Create the functions declarations
     fdec_code = ""
+    fdec_code += __code_h_probed_state_bytes(psgis_entries) + "\n"
     fdec_code += __code_SimModel(topm) + "\n"
     fdec_code += __code_ProbedState(psgis_entries) + "\n"
     fdec_code += __code_ProbedStateBuffer(psgis_entries) + "\n"
