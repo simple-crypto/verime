@@ -1163,7 +1163,7 @@ def __compile_verime_package(
     cpath_new_value = ""
     for i, d in enumerate(inc_dirs_list):
         if i == len(inc_dirs_list) - 1:
-            cpath_new_value += "{}:$CPATH".format(os.path.abspath(d))
+            cpath_new_value += "{}".format(os.path.abspath(d))
         else:
             cpath_new_value += "{}:".format(os.path.abspath(d))
     # Add the path of the verime_library
