@@ -197,16 +197,8 @@ def __create_cpp_header_list(top_module, classes_path):
     # Create an empty list of header
     head_list = []
     # Search for top module
-    head_list += ["V{}.h".format(top_module)]
-    if True: #len(classes_path)>0:
-        head_list += ["V{}_{}.h".format(top_module,top_module)]
-    # Add module header
-    for mn in classes_path:
-        head_list += [mn]
-    # Add the Verilated.h header
-    head_list += ["verilated.h"]
+    head_list += ["V{}__Syms.h".format(top_module)]
     return head_list
-
 
 # Return the corresponding Verilator cpp type based on the width of the signal
 def __get_cpp_verilator_type(l):
@@ -1103,6 +1095,9 @@ def __create_verime_package(
     generics_dict,
     top_module_path,
     yosys_exec_path,
+    verilator_exec_path,
+    verilator_dir,
+    verime_pack_abspath
 ):
     # Create the different paths
     json_out_path = "{}/net.json".format(work_dir)
@@ -1329,6 +1324,9 @@ if __name__ == "__main__":
             dic_gen,
             args.top,
             "yosys",
+            args.verilator_exec,
+            args.verilator_work,
+            os.path.abspath(args.pack)
         )
     else:
         # Compile package
