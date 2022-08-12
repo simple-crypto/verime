@@ -1154,7 +1154,8 @@ def __compile_verime_package(
     exec_name,
     verilator_dir,
     verilator_exec_path,
-    dic_define
+    dic_define,
+    verilator_args
 ):
     ## Reset the Verilator workspace directory
     __reset_and_create_dir(verilator_dir)
@@ -1191,11 +1192,16 @@ def __compile_verime_package(
     used_exec_name = os.path.abspath(exec_name)
     # Get the compilation flags for Verilator
     vflags = __verilator_compil_flags()
+    # Get the verilator arguments
+    verilator_args_str = ""
+    for e in verilator_args:
+        verilator_args_str = "{} {}".format(verilator_args_str,e)
     # Create global command
-    cmd = "CPATH={} {} --cc --exe --build -y {} -Mdir {} {} {} -o {} {} {} {}".format(
+    cmd = "CPATH={} {} --cc --exe --build -y {} {} -Mdir {} {} {} -o {} {} {} {}".format(
         cpath_new_value,
         verilator_exec_path,
         srcs_path,
+        verilator_args_str,
         verilator_dir,
         vflags,
         defines_str,
@@ -1285,6 +1291,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--verilator-exec", default="verilator", help="Verilator executable."
     )
+    parser.add_argument(
+        "-varg",
+        "--verilator-arg",
+        default=[],
+        action="append",
+        nargs="+",
+        help="Verilator argument to append to the compilation process. Should be quoted if more than one word."
+    )
 
     args = parser.parse_args()
 
@@ -1309,6 +1323,10 @@ if __name__ == "__main__":
     list_cpp = []
     for e in args.cpp_files:
         list_cpp += [e[0]]
+
+    list_verilator_arg = []
+    for e in args.verilator_arg:
+        list_verilator_arg += [e[0]]
 
     dic_gen = __args_parse_generics(args.generics)
     dic_define = __args_parse_generics(args.define)
@@ -1337,5 +1355,6 @@ if __name__ == "__main__":
             args.exec,
             args.verilator_work,
             args.verilator_exec,
-            dic_define
+            dic_define,
+            list_verilator_arg
         )
