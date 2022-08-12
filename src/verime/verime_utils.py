@@ -11,6 +11,9 @@ def load_cfg_file(cfg_file_path):
         cfg = json.load(f)
     return cfg
 
+# Generate the configuration from the configuration strings
+def load_cfgs(cfgs):
+    return json.loads(cfgs)
 
 # Return a specific sector in the file
 def get_data_sector(data_filename, config, sec_idx):
@@ -22,6 +25,13 @@ def get_data_sector(data_filename, config, sec_idx):
         df.seek(offset)
         data_sector = df.read(ss)
     return data_sector
+
+# Return the specific sector from a buffer
+def get_data_sector_buffer(data_buffer, config, sec_idx):
+    # Get the size of a sector (in amount of bytes)
+    ss = config["bytes"]
+    offset = sec_idx * ss
+    return data_buffer[offset:offset+ss]
 
 # Read a sector in the open file provided
 def read_sector(open_file, size_byte_sector, offset_sector):
@@ -114,6 +124,19 @@ def decode_data_sector(data_sec, config):
         cu_data_bits = config["sigs"][k]["bits"]
         current_bytes = data_sec[processed_bytes : processed_bytes + cu_data_bytes]
         sigs_dic[k] = byte2bits(current_bytes, cu_data_bits)
+        processed_bytes += cu_data_bytes
+    return sigs_dic
+
+# Decode data_sector and return byte
+def decode_data_sector_bytes(data_sec, config):
+    # Create the empty dic for the obtained signal
+    sigs_dic = {}
+    # Iterate over each signals
+    processed_bytes = 0
+    for k in config["sigs"].keys():
+        cu_data_bytes = config["sigs"][k]["bytes"]
+        current_bytes = data_sec[processed_bytes : processed_bytes + cu_data_bytes]
+        sigs_dic[k] = current_bytes
         processed_bytes += cu_data_bytes
     return sigs_dic
 
