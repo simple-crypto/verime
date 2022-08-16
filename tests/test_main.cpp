@@ -1,5 +1,4 @@
 #include "my_funky_lib.h"
-
 int main(int argc, char** argv) {
     // Create Simulation model
     SimModel * sm = new_model_ptr();
@@ -29,5 +28,7 @@ int main(int argc, char** argv) {
 
     // Close all
     fclose(fp);
+    free(state);
+    delete_model_ptr(sm);
     return 0;
 }

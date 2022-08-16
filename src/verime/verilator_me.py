@@ -243,19 +243,27 @@ def __code_h_new_model_ptr():
 def __code_cpp_new_model_ptr(sim_top_module):
     cpp_code = """extern \"C\" SimModel * new_model_ptr() {{
     VerilatedContext * contextp = new VerilatedContext;
-    V{} * top;
-    top = new V{}(contextp);
-    SimModel sm;
-    sm.contextp = contextp;
-    sm.vtop = top;
+    V{} * top = new V{}(contextp);
     SimModel * sm_ptr = (struct SimModel *) malloc(sizeof(struct SimModel));
-    memcpy(sm_ptr,&sm,sizeof(struct SimModel));
+    sm_ptr->contextp = contextp;
+    sm_ptr->vtop = top;
     return sm_ptr;
 }}\n""".format(
         sim_top_module, sim_top_module
     )
     return cpp_code
 
+def __code_h_delete_model_ptr():
+    h_code = "extern \"C\" void delete_model_ptr(SimModel * sm);\n"
+    return h_code
+
+def __code_cpp_delete_model_ptr():
+    cpp_code = """extern \"C\" void delete_model_ptr(SimModel * sm) {
+    delete(sm->vtop);
+    delete(sm->contextp);
+    free(sm);
+}\n"""
+    return cpp_code
 
 # Build the code for the sim_clock_cycle() function
 def __code_h_sim_clock_cycle():
@@ -698,6 +706,7 @@ def __code_lib_declaration(libname, psgis_entries, header_list, topm):
     fdec_code += __code_ProbedState(psgis_entries) + "\n"
     fdec_code += __code_ProbedStateBuffer(psgis_entries) + "\n"
     fdec_code += __code_h_new_model_ptr() + "\n"
+    fdec_code += __code_h_delete_model_ptr() + "\n"
     fdec_code += __code_h_new_probed_state_ptr() + "\n"
     fdec_code += __code_h_new_ProbedStateBuffer_ptr() + "\n"
     fdec_code += __code_h_delete_ProbedStateBuffer_ptr() + "\n"
@@ -732,6 +741,7 @@ def __code_lib_definition(libname, psgis_entries, topm):
     # Create the functions definitions
     fdef_code = ""
     fdef_code += __code_cpp_new_model_ptr(topm) + "\n"
+    fdef_code += __code_cpp_delete_model_ptr() + "\n"
     fdef_code += __code_cpp_new_probed_state_ptr() + "\n"
     fdef_code += __code_cpp_new_ProbedStateBuffer_ptr(psgis_entries) + "\n"
     fdef_code += __code_cpp_delete_ProbedStateBuffer_ptr() + "\n"
