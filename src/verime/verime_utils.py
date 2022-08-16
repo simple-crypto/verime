@@ -140,6 +140,24 @@ def decode_data_sector_bytes(data_sec, config):
         processed_bytes += cu_data_bytes
     return sigs_dic
 
+# Decode the ocnfiguration and generate the mapping
+# Return a dic containing the byte index in the state containing each sigs
+def decode_byte_mapping(config):
+    # Create the mapping dic 
+    map_dic = {}
+    # Add the bytes
+    map_dic["bytes"] = config["bytes"]
+    map_dic["sigs"] = {}
+    # Iterate over each signals
+    processed_bytes = 0
+    for sig in config["sigs"].keys():
+        # Fetch len
+        sig_span = config['sigs'][sig]["bytes"]
+        bytes_tap = np.arange(sig_span)+processed_bytes
+        map_dic['sigs'][sig] = bytes_tap
+        processed_bytes += sig_span
+    return map_dic
+
 # Decode multiple data sector, as obtained with the return 
 # of get_data_sectors()
 def decode_data_sectors(data_secs, config):
