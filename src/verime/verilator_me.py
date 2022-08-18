@@ -10,6 +10,13 @@ import argparse
 verime_attr = "verilator_me"
 probed_state_c_var = "probed_state_bytes"
 
+# Perform a os command an check for return code. Display an error message of not
+# matched
+def __OScmd(cmd,expr,error_str):
+    r = os.system(cmd)
+    if r != expr:
+        raise ValueError(error_str)
+
 # Check the validity of a signal
 def __check_netn_validity(nn):
     return nn[0] != "$"
@@ -904,14 +911,14 @@ def __build_yosys_elab_script(
     # Write the file
     with open(script_path, "w") as f:
         f.write(code2write)
-    os.system("chmod 766 {}".format(script_path))
+    __OScmd("chmod 766 {}".format(script_path),0,"Fail to give yosys script permission...")
 
 
 def __run_yosys_script(yosys_exec_path, script_path):
     print("Run yosys elaboration")
     cmd = "{} -q -s {}".format(yosys_exec_path, script_path)
     print("RUNNING: {}".format(cmd))
-    os.system(cmd)
+    __OScmd(cmd,0,"Fail to perform yosys synthesis...")
 
 
 # Workspace related
@@ -923,13 +930,13 @@ def __reset_and_create_dir(workspace_dir):
         print("Directory {} found -> the directory will be deleted.".format(workspace_dir))
         print("###################################################")
         print("")
-        os.system("rm -rf {}".format(workspace_dir))
+        __OScmd("rm -rf {}".format(workspace_dir),0,"Fail to remove directory...")
     # Create new workspace
-    os.system("mkdir -p {}".format(workspace_dir))
+    __OScmd("mkdir -p {}".format(workspace_dir),0,"Fail to create directory...")
 
 
 def __create_dir(dir_name):
-    os.system("mkdir -p {}".format(dir_name))
+    __OScmd("mkdir -p {}".format(dir_name),0,"Fail to create directory...")
 
 
 # Parsing for verilator annotation
@@ -995,7 +1002,7 @@ def __copy_vh_files(inc_dir_list, target_dir):
             if fname.endswith('.vh'):
                 pathname = '{}/{}'.format(idr,fname)
                 cmd = "cp {} {}/".format(pathname,target_dir)
-                os.system(cmd)
+                __OScmd(cmd,0,'Fail to copy FILE \'{}\' ...'.format(pathname))
 
 
 ## Create verilator config
@@ -1095,6 +1102,31 @@ def __pp_define(dic_defines):
         str_defines = '{} -CFLAGS -D{}={}'.format(str_defines,vd,dic_defines[vd])
     return str_defines
 
+# Create sub makefile for exec or 
+def __verimemk_orule_str(cpp_file_path):
+    pref_f = os.path.basename(cpp_file_path).split('.')[0]
+    rule_txt = """{}.o: {}\n\t\t$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<""".format(pref_f,os.path.abspath(cpp_file_path))
+    return rule_txt
+
+def __verimemk_str(
+        top_module_path,
+        cpp_files
+        ):
+    # Fetch top module name
+    topv = os.path.basename(top_module_path).split('.')[0]
+    # include default:
+    mktxt = "default: allverime\n\n"
+    # Include generated makefile
+    mktxt += "include V{}.mk\n".format(topv)
+    mktxt += "VPATH += $(VM_USER_DIR)"
+    # Create rules for each c/cpp files
+    for cf in cpp_files:
+        mktxt = "{}\n\n{}".format(mktxt,__verimemk_orule_str(cf))
+    # create last 
+    mktxt += "\nallverime: $(VK_USER_OBJS) $(VK_GLOBAL_OBJS) $(VM_PREFIX)__ALL.a $(VM_HIER_LIBS)"
+    return mktxt
+
+
 #### Main functions
 ## Generate the verilator-me package
 def __create_verime_package(
@@ -1161,7 +1193,6 @@ def __compile_verime_package(
     cpp_files,
     verime_pack_path,
     inc_dirs_list,
-    exec_name,
     verilator_dir,
     verilator_exec_path,
     dic_define,
@@ -1198,8 +1229,6 @@ def __compile_verime_package(
     generics_params = cfg["GENERIC_TOP"]
     # Build the pre-processor define list
     defines_str = __pp_define(dic_define) 
-    # Build the executable name
-    used_exec_name = os.path.abspath(exec_name)
     # Get the compilation flags for Verilator
     vflags = __verilator_compil_flags()
     # Get the verilator arguments
@@ -1207,7 +1236,7 @@ def __compile_verime_package(
     for e in verilator_args:
         verilator_args_str = "{} {}".format(verilator_args_str,e)
     # Create global command
-    cmd = "CPATH={} {} --cc --exe --build -y {} {} -Mdir {} {} {} -o {} {} {} {}".format(
+    cmd = "CPATH={} {} --cc --build -y {} {} -Mdir {} {} {} {} {} {}".format(
         cpath_new_value,
         verilator_exec_path,
         srcs_path,
@@ -1215,7 +1244,6 @@ def __compile_verime_package(
         verilator_dir,
         vflags,
         defines_str,
-        used_exec_name,
         generics_params,
         top_mod_path,
         str_cpp_files,
@@ -1224,8 +1252,14 @@ def __compile_verime_package(
     print("RUNNING VERILATOR BUILD COMMAND:")
     print(cmd)
     print("\n\n")
-    os.system(cmd)
+    __OScmd(cmd,0,"Fail to build pack with verilator...")
 
+    # Create the verime-makefile
+    verimemk = "{}/verime.mk".format(verilator_dir)
+    with open(verimemk,'w') as f:
+        f.write(__verimemk_str(top_mod_path,cpp_files))
+    # Run the make 
+    __OScmd("CPATH={} make -C {} -f {}".format(cpath_new_value,verilator_dir,verimemk),0,"Fail to build with verime makefile...")
 
 # Main program
 if __name__ == "__main__":
@@ -1287,11 +1321,6 @@ if __name__ == "__main__":
         action="append",
         nargs="+",
         help="C++ file to use in the compilation process. If specified, the compilation mode is used.",
-    )
-    parser.add_argument(
-        "--exec",
-        default="exec",
-        help="Path of the binary produced by the compilation process.",
     )
     parser.add_argument(
         "--verilator-work",
@@ -1362,7 +1391,6 @@ if __name__ == "__main__":
             list_cpp,
             os.path.abspath(args.pack),
             list_I,
-            args.exec,
             args.verilator_work,
             args.verilator_exec,
             dic_define,
