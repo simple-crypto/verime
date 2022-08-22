@@ -1,139 +1,58 @@
 #! /bin/env python3
+import math
 import json
 import re
 import os
 import argparse
+import shutil
+import subprocess
+import itertools as it
 
 # Constant attribute to look for.
 # Attributed signal will be considered in the file
 # generation
-verime_attr = "verilator_me"
-probed_state_c_var = "probed_state_bytes"
+VERIME_ATTR = "verilator_me"
+PROBED_STATE_C_VAR = "probed_state_bytes"
 
-# Perform a os command an check for return code. Display an error message of not
-# matched
-def __OScmd(cmd,expr,error_str):
-    r = os.system(cmd)
-    if r != expr:
-        raise ValueError(error_str)
+def list_all_instances(netlist, top_module):
+    """Walk the tree of instances reprensented by the netlist and for each
+    instance, yield the path as a list of strings and the module type.
+    """
+    yield ([], top_module)
+    for cell_name, cell in netlist["modules"][top_module]["cells"].items():
+        # skip yosys internal names
+        if '$' not in cell_name:
+            for path, mod in list_all_instances(netlist, cell["type"]):
+                yield ([cell_name]+path, mod)
 
-# Check the validity of a signal
-def __check_netn_validity(nn):
-    return nn[0] != "$"
+def list_verime_nets(module):
+    """In a module, list all nets with the verilator_me attribute, and for
+    each one, yield its name, its width, and the value of the verilator_me
+    attribute.
+    """
+    for netn, net in module['netnames'].items():
+        if not netn.startswith('$') and VERIME_ATTR in net['attributes']:
+            width = len(net['bits'])
+            yield (netn, width, net['attributes'][VERIME_ATTR])
 
-
-# Check the validity of a cell
-def __check_celn_validity(cn):
-    #return cn[0] != "$"
-    valid = not("$" in cn)
-    return valid
-
-
-def __create_mod_path(mod_path, mod_name):
-    if mod_path == "":
-        return mod_name
-    else:
-        return "{}.{}".format(mod_path, mod_name)
-
-
-def __create_entry_path_name(mod_path, net_name):
-    return "{}.{}".format(mod_path, net_name)
-
-
-# Parse signal resulting of generation block
-def __parse_generate_index(netpath):
-    idxes = re.findall(r"\[([^]]*)\]", netpath)
-    vidx = ""
-    for i, e in enumerate(idxes):
-        if i == len(idxes) - 1:
-            vidx += "{}".format(e)
-        else:
-            vidx += "{}_".format(e)
-    return vidx
-
-# Create the required specific class for the .cpp code
-def __classes_names(list_srcs):   
-    classes_list = []
-    top_path = list_srcs[0]
-    top_module = __mod_name_from_path(top_path)
-    # Initiate name
-    class_prefix = "V{}".format(top_module,top_module)
-    # Add final module
-    for e in list_srcs[1:]:
-        mod_name = __mod_name_from_path(e)
-        class_name = "{}_{}".format(class_prefix,mod_name)
-        class_name = "{}.h".format(class_name)
-        classes_list += [class_name]
-    return classes_list
-
-def __create_match_entry(mod_path, net_name, verime_name, width, req_spec_class):
-    # Create the netpath
-    np = __create_entry_path_name(mod_path, net_name)
-    # Create the potential idx string (for Verilog generate blocks)
-    idx_str = __parse_generate_index(np)
-    if idx_str != "":
-        verime_name_ret = verime_name + "__{}".format(idx_str)
-    else:
-        verime_name_ret = verime_name
-    # Keep the width of the signal
-    return [np, verime_name_ret, width, req_spec_class]
-
-def __mod_name_from_path(filepath):
-    mod_name = filepath.split("/")[-1].split('.v')[0]
-    return mod_name
-
-# Get a list with unique element in the list provided
-def __get_list_unique(l):
-    return list(set(l))
-
-def __recur_search_verime_attr(mod_jtree, mod_name, mod_inst, mod_path, list_srcs):
-    matches = []
-    new_list_srcs = []
-    # Iterate over each netname
-    for netn in mod_jtree[mod_name]["netnames"].keys():
-        # If the signal is valid (i.e., not for yosys purpose), proceed
-        if __check_netn_validity(netn):
-            # Search for the target attribute
-            if (
-                verime_attr
-                in mod_jtree[mod_name]["netnames"][netn]["attributes"].keys()
-            ):
-                # Update list
-                new_list_srcs = list_srcs + [mod_jtree[mod_name]["attributes"]["src"]]
-                # Create a new match entry
-                ment = __create_match_entry(
-                    mod_path,
-                    netn,
-                    mod_jtree[mod_name]["netnames"][netn]["attributes"][verime_attr],
-                    len(mod_jtree[mod_name]["netnames"][netn]["bits"]),
-                    __classes_names(new_list_srcs)
-                )
-                matches += [ment]
-
-    # Dig into the module cells for other signals in the architecture
-    for cn in mod_jtree[mod_name]["cells"].keys():
-        if __check_celn_validity(cn):
-            new_list_srcs = list_srcs + [mod_jtree[mod_name]["cells"][cn]["attributes"]["src"]]
-            m_cell = __recur_search_verime_attr(
-                mod_jtree,
-                mod_jtree[mod_name]["cells"][cn]["type"],
-                cn,
-                __create_mod_path(mod_path, cn),
-                new_list_srcs
-            )
-            matches += m_cell 
-    # Return
-    return matches
-
-
-def search_verime_attr(ld_json_netlist, top_name, mod_inst):
-    return __recur_search_verime_attr(
-        ld_json_netlist["modules"], top_name, mod_inst, top_name, []
-    )
+def find_verime_nets(netlist, top_module):
+    """In the architecture, list all signals with a verilator_me attribute.
+    For each such signal, yield its path, the value of the verilator_me
+    attribute (suffixed to be unique) and its with.
+    """
+    for path, module in list_all_instances(netlist, top_module):
+        mod_path = '.'.join([top_module] + path)
+        for (net_name, width, verime_name) in list_verime_nets(netlist['modules'][module]):
+            net_path = mod_path + '.' + net_name
+            # Parse signal resulting of generation block
+            idx_str = '_'.join(re.findall(r"\[([^]]*)\]", net_path))
+            if idx_str != "":
+                verime_name += "__" + idx_str
+            yield (net_path, verime_name, width)
 
 
 # Format the name as generated by Verilator
-def __format_cpp_name(netname,last_in_path):
+def __format_cpp_name(netname, last_in_path):
     # Check if the name is from a generated block
     if "[" in netname:
         # Get the signal name
@@ -141,7 +60,7 @@ def __format_cpp_name(netname,last_in_path):
         sn = splitv[0]
         sn_idx = splitv[1].split("]")[0]
         if last_in_path:
-            return "{}[{}]".format(sn,sn_idx)
+            return "{}[{}]".format(sn, sn_idx)
         else:
             return "{}__BRA__{}__KET____DOT__".format(sn, sn_idx)
     else:
@@ -149,164 +68,107 @@ def __format_cpp_name(netname,last_in_path):
 
 
 # Create the name of a variable generated by Verilator.
-def __create_cpp_cw_name(net_list,last_in_path):
-    cw_name = ""
-    for e in net_list:
-        cw_name += __format_cpp_name(e,last_in_path)
-    return cw_name
+def __create_cpp_cw_name(net_list, last_in_path):
+    return ''.join(__format_cpp_name(e, last_in_path) for e in net_list)
 
 
 # Create the list of variables to access a specific signal accross
 # the architecture
-def __create_cpp_model_var(netpath):
+def __create_cpp_model_var(net_path):
     # Split path with dot chars
-    sp_string = netpath.split(".")
+    sp_string = net_path.split(".")
     # Generate the list of variable name
     var_names = []
     idx_runner = 0
     end = True
     while idx_runner < len(sp_string):
         # Create empty net_list and fill it
-        netlist = []
+        net_list = []
         runi = 0
         if "[" in sp_string[idx_runner + runi]:
-            while (idx_runner+runi<len(sp_string)) and "[" in sp_string[idx_runner + runi]:
+            while (idx_runner + runi < len(sp_string)) and "[" in sp_string[
+                idx_runner + runi
+            ]:
                 runi += 1
-        netlist = sp_string[idx_runner : idx_runner + runi + 1]
+        net_list = sp_string[idx_runner : idx_runner + runi + 1]
         # Create name
         last_in_path = idx_runner + runi + 1 > len(sp_string)
-        var_names += [__create_cpp_cw_name(netlist,last_in_path)]
+        var_names += [__create_cpp_cw_name(net_list, last_in_path)]
         idx_runner += runi + 1
-    return var_names
+    return '->'.join(var_names)
 
 
-# Create Verilator path from the list of variables
-def __create_cpp_model_path(netpath):
-    # Create the model header
-    mhead_p = ""
-    # Create the global path that should be called from Verilator
-    for i, e in enumerate(netpath):
-        if i == 0:
-            mhead_p = e
-        else:
-            mhead_p += "->{}".format(e)
-    return mhead_p
-
-
-# Search top module
-def __search_top_module(modules_list):
-    for e in modules_list.keys():
-        if "top" in modules_list[e]["attributes"].keys():
-            return e
-
-# Create a list of verilator header required for the cpp library.
-def __create_cpp_header_list(top_module, classes_path):
-    # Create an empty list of header
-    head_list = []
-    # Search for top module
-    head_list += ["V{}__Syms.h".format(top_module)]
-    return head_list
-
-# Return the corresponding Verilator cpp type based on the width of the signal
-def __get_cpp_verilator_type(l):
+def width2storage(l):
+    """From the width in bits of a signal, return a description of the encoding
+    of the signal as (word_size, is_array, array_length)."""
     if l <= 8:
-        return "uint8_t"
+        return (1, False, 1)
     elif 8 < l and l <= 16:
-        return "uint16_t"
+        return (2, False, 1)
     elif 16 < l and l <= 32:
-        return "uint32_t"
+        return (4, False, 1)
     elif 32 < l and l <= 64:
-        return "uint64_t"
+        return (8, False, 1)
     else:
-        return "uint32_t *"
+        return (4, True, math.ceil(l / 32))
 
 
-# Build Header include based on header list
-def __code_include_header(head_list):
-    header_code = ""
-    for e in head_list:
-        inc_code = '#include "{}"\n'.format(e)
-        header_code += inc_code
-    return header_code
+def storage_size(l):
+    word_size, _, array_length = width2storage(l)
+    return word_size * array_length
 
 
-# Build SimModel Structure cpp code.
-def __code_SimModel(sim_top_module):
-    struct_code = ""
-    return """struct SimModel{{ 
-    VerilatedContext * contextp;
-    V{} * vtop;
-}};\n""".format(
-        sim_top_module
-    )
+def size_probed_state(psig_entries):
+   return sum(storage_size(entry[2]) for entry in psig_entries)
 
 
-# Build the code for the new_model_ptr() function
-def __code_h_new_model_ptr():
-    h_code = "extern \"C\" SimModel * new_model_ptr();\n"
-    return h_code
+def code_SimModel(sim_top_module):
+    return fn_def((
+        'struct SimModel',
+        ['VerilatedContext * contextp;', f'V{sim_top_module} * vtop;']
+        )) + ';'
+
+def code_new_model_ptr(sim_top_module):
+    return (
+            'extern "C" SimModel * new_model_ptr()',
+            [
+                f'VerilatedContext * contextp = new VerilatedContext;',
+                f'V{sim_top_module} * top = new V{sim_top_module}(contextp);',
+                f'SimModel * sm_ptr = (struct SimModel *) malloc(sizeof(struct SimModel));',
+                f'sm_ptr->contextp = contextp;',
+                f'sm_ptr->vtop = top;',
+                f'return sm_ptr;',
+                ]
+            )
 
 
-def __code_cpp_new_model_ptr(sim_top_module):
-    cpp_code = """extern \"C\" SimModel * new_model_ptr() {{
-    VerilatedContext * contextp = new VerilatedContext;
-    V{} * top = new V{}(contextp);
-    SimModel * sm_ptr = (struct SimModel *) malloc(sizeof(struct SimModel));
-    sm_ptr->contextp = contextp;
-    sm_ptr->vtop = top;
-    return sm_ptr;
-}}\n""".format(
-        sim_top_module, sim_top_module
-    )
-    return cpp_code
-
-def __code_h_delete_model_ptr():
-    h_code = "extern \"C\" void delete_model_ptr(SimModel * sm);\n"
-    return h_code
-
-def __code_cpp_delete_model_ptr():
-    cpp_code = """extern \"C\" void delete_model_ptr(SimModel * sm) {
-    delete(sm->vtop);
-    delete(sm->contextp);
-    free(sm);
-}\n"""
-    return cpp_code
-
-# Build the code for the sim_clock_cycle() function
-def __code_h_sim_clock_cycle():
-    h_code = "void sim_clock_cycle(SimModel * sm);\n"
-    return h_code
+def code_delete_model_ptr():
+    return (
+            'extern "C" void delete_model_ptr(SimModel * sm)',
+            [
+                'delete(sm->vtop);',
+                'delete(sm->contextp);',
+                'free(sm);',
+                ]
+            )
 
 
-def __code_cpp_sim_clock_cycle(sim_top_module):
-    cpp_code = """void sim_clock_cycle(SimModel * sm){{
-    V{} * top = sm->vtop;
-    top->clk=0;
-    top->eval();
-    top->clk=1;
-    top->eval();
-}}\n""".format(
-        sim_top_module
-    )
-    return cpp_code
+def code_sim_clock_cycle(sim_top_module):
+    return (
+            "void sim_clock_cycle(SimModel * sm)",
+            [
+                f'V{sim_top_module} * top = sm->vtop;',
+                f'top->clk=0;',
+                f'top->eval();',
+                f'top->clk=1;',
+                f'top->eval();',
+                ]
+            )
 
 
-# Build the code for the delete_model() function
-def __code_h_delete_model():
-    h_code = "void delete_model(SimModel mod);\n"
-    return h_code
-
-
-def __code_cpp_delete_model():
-    cpp_code = """void delete_model(SimModel mod) {
-    delete mod.vtop;
-    delete mod.contextp;
-};\n"""
-    return cpp_code
-
-
-# Build the include barrier code to add on top of the library header file
-def __code_inc_barrier(code, libname):
+def code_inc_barrier(code, libname):
+    """Build the include barrier code to add on top of the library header
+    file."""
     header_variable = "LIB_{}_H_".format(libname.upper())
     barried_code = "#ifndef {}\n#define {}\n{}\n#endif".format(
         header_variable, header_variable, code
@@ -314,42 +176,25 @@ def __code_inc_barrier(code, libname):
     return barried_code
 
 
-# Create the accessor definition and code for the given
-# match entry (obtained by parsing the Yosys json netlist)
-def __code_accessor_declaration(entry):
+def code_accessor(entry):
     # Get the type of the return value
-    return_type = __get_cpp_verilator_type(entry[2])
-    # Generate the accessor function name
+    word_size, is_array, _ = width2storage(entry[2])
+    return_type = {
+        (1, False): "uint8_t",
+        (2, False): "uint16_t",
+        (4, False): "uint32_t",
+        (8, False): "uint64_t",
+        (4, True): "uint32_t *",
+    }[(word_size, is_array)]
+    # Accessor function name
     fname = "get_{}".format(entry[1])
-    # Generate the global declaration
-    fdec = "{} {}(SimModel * sm)".format(return_type, fname)
-    return fdec
+    return (
+            "{} {}(SimModel * sm)".format(return_type, fname),
+            ["return sm->vtop->{};".format(__create_cpp_model_var(entry[0]))],
+            )
 
-
-def __code_accessor_definition(entry):
-    fdef = "    return sm->vtop->{};".format(
-        __create_cpp_model_path(__create_cpp_model_var(entry[0]))
-    )
-    return fdef
-
-
-def __code_h_accessor(entry):
-    # Build the declaration
-    fdec = __code_accessor_declaration(entry)
-    ret_h_f = "{};\n".format(fdec)
-    return ret_h_f
-
-
-def __code_cpp_accessor(entry):
-    # Build the definition
-    fdec = __code_accessor_declaration(entry)
-    fdef = __code_accessor_definition(entry)
-    ret_cpp_f = "{}{{\n{}\n}}\n".format(fdec, fdef)
-    return ret_cpp_f
-
-
-# Create the code for the ProbedState structure
-def __code_ProbedState_element(entry):
+def code_ProbedState_element(entry):
+    """Create the code for the ProbedState structure."""
     l = entry[2]
     if l <= 8:
         return "uint8_t * {};".format(entry[1])
@@ -360,906 +205,391 @@ def __code_ProbedState_element(entry):
     elif 32 < l and l <= 64:
         return "uint64_t * {};".format(entry[1])
     else:
-        am_32w = l // 32
-        if l % 32 != 0:
-            am_32w += 1
-        return "uint32_t (* {})[{}];".format(entry[1], am_32w)
+        return "uint32_t (* {})[{}];".format(entry[1], math.ceil(l/32))
 
 
-def __code_ProbedState(entries):
-    struct_code = ""
-    struct_code += "typedef struct {\n"
-    for e in entries:
-        struct_code += "    {}\n".format(__code_ProbedState_element(e))
-    struct_code += "} ProbedState;\n"
-    return struct_code
-
-# Build the code for the new_probed_state_ptr() function
-def __code_h_new_probed_state_ptr():
-    h_code = "extern \"C\" ProbedState * new_probed_state_ptr();\n"
-    return h_code
-
-def __code_cpp_new_probed_state_ptr():
-    cpp_code = """extern \"C\" ProbedState * new_probed_state_ptr() {
-    ProbedState prb_st;
-    ProbedState * prb_st_ptr = (ProbedState *) malloc(sizeof(ProbedState));
-    memcpy(prb_st_ptr,&prb_st,sizeof(ProbedState));
-    return prb_st_ptr;
-}\n"""
-    return cpp_code
-
-# Build the code for the openfile function used in python wrapper
-def __code_h_openfile():
-    h_code = "extern \"C\" FILE * openfile(const char * fn);\n"
-    return h_code
-
-def __code_cpp_openfile():
-    cpp_code = """extern \"C\" FILE * openfile(const char * fn){
-    return fopen(fn,\"w\");
-}\n"""
-    return cpp_code
-
-# Build the code for the closefile function used in python wrapper
-def __code_h_closefile():
-    h_code = "extern \"C\" int closefile(FILE * fp);\n"
-    return h_code
-
-def __code_cpp_closefile():
-    cpp_code = """extern \"C\" int closefile(FILE * fp){
-    return fclose(fp);
-}\n"""
-    return cpp_code
-
-# Build the code for the free_ptr function used in python wrapper
-def __code_h_free_ptr():
-    h_code = "extern \"C\" void free_ptr(void * ptr);\n"
-    return h_code
-
-def __code_cpp_free_ptr():
-    cpp_code = """extern \"C\" void free_ptr(void * ptr){
-    free(ptr);
-}\n"""
-    return cpp_code
-
-# Code for the link_state() function
-def __code_link_state_declaration():
-    def_code = "void link_state(SimModel * sm, ProbedState * state)"
-    return def_code
+def code_ProbedState(entries):
+    return '\n'.join([
+        "typedef struct {",
+        *("    " + code_ProbedState_element(e) for e in entries),
+        "} ProbedState;"
+        ])
 
 
-def __code_link_state_definition(entries):
-    def_code = "{} {{\n".format(__code_link_state_declaration())
-    # For each entry write the bounding
-    for e in entries: 
-        if e[2] > 64:
-            if True:#e[0][-1]=="]":
-                # In that case, should convert manually the pointer
-                # Compute the amount of words
-                am32w = e[2] // 32
-                if e[2] % 32 != 0:
-                    am32w += 1
-                # Format code
-                code_e = "state->{} = (uint32_t (*)[{}]) &sm->vtop->{}".format(
-                    e[1], am32w, __create_cpp_model_path(__create_cpp_model_var(e[0]))
-                )
-            else:
-                code_e = "state->{} = &sm->vtop->{}".format(
-                    e[1], __create_cpp_model_path(__create_cpp_model_var(e[0]))
-                )
-        else:
-            code_e = "state->{} = &sm->vtop->{}".format(
-                e[1], __create_cpp_model_path(__create_cpp_model_var(e[0]))
+def code_new_probed_state_ptr():
+    return (
+            'extern "C" ProbedState * new_probed_state_ptr()',
+            [
+                'ProbedState prb_st;',
+                'ProbedState * prb_st_ptr = (ProbedState *) malloc(sizeof(ProbedState));',
+                'memcpy(prb_st_ptr,&prb_st,sizeof(ProbedState));',
+                'return prb_st_ptr;',
+                ]
             )
 
-        def_code += "    {};\n".format(code_e)
-    # Close bracket
-    def_code += "}"
-    return def_code
+def state_typecast(width):
+    return f'(uint32_t (*)[{math.ceil(width / 32)}])' if width > 64 else ''
+
+def code_link_state(entries):
+    return (
+            "void link_state(SimModel * sm, ProbedState * state)",
+            [
+                "state->{} = {} &sm->vtop->{};".format(
+                    e[1], state_typecast(e[2]), __create_cpp_model_var(e[0])
+                    )
+                for e in entries
+                ]
+            )
 
 
-def __code_h_link_state():
-    dec_code = __code_link_state_declaration()
-    return "{};\n".format(dec_code)
+def code_fwrite_probed_state_elem(entry):
+    sizew, longword, amw  = width2storage(entry[2])
+    return f'fwrite(state->{entry[1]}{[0] if longword else ""},{sizew},{amw},stream);'
 
 
-def __code_cpp_link_state(entries):
-    def_code = __code_link_state_definition(entries)
-    return "{}\n".format(def_code)
+def code_write_probed_state(entries):
+    return (
+            "void write_probed_state(ProbedState * state, FILE * stream)",
+            [code_fwrite_probed_state_elem(e) for e in entries]
+            )
 
 
-# Code for the write_probed_state
-def __code_declaration_write_probed_state():
-    dec_code = "void write_probed_state(ProbedState * state, FILE * stream)"
-    return dec_code
-
-
-def __code_fwrite_probed_state_elem(entry):
-    l = entry[2]
-    longword = False
-    if l <= 8:
-        sizew = 1
-        amw = 1
-    elif 8 < l and l <= 16:
-        sizew = 2
-        amw = 1
-    elif 16 < l and l <= 32:
-        sizew = 4
-        amw = 1
-    elif 32 < l and l <= 64:
-        sizew = 8
-        amw = 1
-    else:
-        longword = True
-        sizew = 4
-        amw = l // 32
-        if l % 32 != 0:
-            amw += 1
-    if longword:
-        return "fwrite(state->{}[0],{},{},stream)".format(entry[1], sizew, amw)
-    else:
-        return "fwrite(state->{},{},{},stream)".format(entry[1], sizew, amw)
-
-
-def __code_definition_write_probed_state(entries):
-    def_code = "{} {{\n".format(__code_declaration_write_probed_state())
-    # For each entry
-    for e in entries:
-        def_code += "    {};\n".format(__code_fwrite_probed_state_elem(e))
-    # Close final bracket
-    def_code += "}"
-    return def_code
-
-
-def __code_h_write_probed_state():
-    return "{};\n".format(__code_declaration_write_probed_state())
-
-
-def __code_cpp_write_probed_state(entries):
-    return "{}\n".format(__code_definition_write_probed_state(entries))
-
-# TODO: add autogenerated function to have access to the dump format.
-# Basicually, return what is writtent in the dump config file
-def __code_h_dump_json():
-    h_code = "const char * dump_json();\n"
-    return h_code
-
-def __code_cpp_dump_json(psig_entries):
-    # Create hte config dic
-    cfg_dic = __jsoncfg_globalcfg_dict(psig_entries)
+def code_dump_json(psig_entries, generics_dict, top_module):
+    sig_dict = {
+            e[1]: { "bytes": storage_size(e[2]), "bits": e[2] }
+            for e in psig_entries
+    }
+    cfg_dic = {
+            "bytes": size_probed_state(psig_entries),
+            "sigs": sig_dict,
+            "GENERIC_TOP": ' '.join(f'-G{gn}={gv}' for gn, gv in generics_dict.items()),
+            "TOP": top_module
+            }
     # Create the JSON string and replace the quote for C formatting
-    json_str = json.dumps(cfg_dic)
-    json_str_c = json_str.replace('\"','\\\"')
-    # Create the code
-    cpp_code = "const char * dump_json(){\n"
-    cpp_code += "    const char * json_str = (const char *) \""
-    cpp_code += json_str_c+"\";\n"
-    cpp_code += "    return json_str;\n}\n"
-    return cpp_code
+    json_str = json.dumps(cfg_dic).replace('"', '\\"')
+    return (
+            "const char * dump_json()",
+            [f'return "{json_str}";']
+            )
 
 
 # Code to generate the code for the ProbedStateBuffer
-def __code_memcpy_probed_state_elem(entry,offset_bytes,target_ptr):
-    l = entry[2]
-    longword = False
-    if l <= 8:
-        sizew = 1
-        amw = 1
-    elif 8 < l and l <= 16:
-        sizew = 2
-        amw = 1
-    elif 16 < l and l <= 32:
-        sizew = 4
-        amw = 1
-    elif 32 < l and l <= 64:
-        sizew = 8
-        amw = 1
-    else:
-        longword = True
-        sizew = 4
-        amw = l // 32
-        if l % 32 != 0:
-            amw += 1
+def code_memcpy_probed_state_elem(entry, offset_bytes, target_ptr):
+    sizew, longword, amw  = width2storage(entry[2])
     # Generate the format with target
     target_format = target_ptr.format(offset_bytes)
-    source_format = "ps->{}".format(entry[1])
-    size_format = "{}".format(sizew*amw) 
-    if longword:
-        source_format += "[0]"
-    memcpy_format = "memcpy({},{},{})".format(
-            target_format,
-            source_format,
-            size_format
-            )
+    source_format = f'ps->{entry[1]}{[0] if longword else ""}'
+    size_format = sizew * amw
+    memcpy_format = "memcpy({},{},{})".format(target_format, source_format, size_format)
     return memcpy_format
 
-def __code_core_write_probed_state_to_buffer(entries,target_ptr):
-    def_core_code = ""
+
+def code_core_write_probed_state_to_buffer(entries, target_ptr):
+    def_core_code = []
     offset_bytes = 0
     for e in entries:
-        def_core_code += "    {};\n".format(__code_memcpy_probed_state_elem(
-            e,
-            offset_bytes,
-            target_ptr
-            ))
-        offset_bytes += __sizesig2bytes(e[2])
-    return def_core_code
+        def_core_code.append(
+                '    ' + code_memcpy_probed_state_elem(e, offset_bytes, target_ptr) + ';'
+                )
+        offset_bytes += storage_size(e[2])
+    return '\n'.join(def_core_code)
 
-def __sizesig2bytes(l_bits):
-    if l_bits <= 8:
-        sizew = 1
-        amw = 1
-    elif 8 < l_bits and l_bits <= 16:
-        sizew = 2
-        amw = 1
-    elif 16 < l_bits and l_bits <= 32:
-        sizew = 4
-        amw = 1
-    elif 32 < l_bits and l_bits <= 64:
-        sizew = 8
-        amw = 1
-    else:
-        sizew = 4
-        amw = l_bits // 32
-        if l_bits % 32 != 0:
-            amw += 1
-    return amw * sizew
 
-def __size_probed_state_byte(psig_entries):
-    am_bytes = 0
-    for e in psig_entries:
-        am_bytes += __sizesig2bytes(e[2])
-    return am_bytes
+def code_ProbedStateBuffer(psig_entries):
+    return fn_def(('typedef struct', [
+        f'char (* buffer)[{size_probed_state(psig_entries)}];',
+        'uint32_t am_ps;',
+    ])) + ' ProbedStateBuffer;'
 
-def __code_ProbedStateBuffer(psig_entries):
-    sizebyte_ps = __size_probed_state_byte(psig_entries)
-    struct_code = """typedef struct {{
-    char (* buffer)[{}];
-    uint32_t am_ps;
-}} ProbedStateBuffer;\n""".format(sizebyte_ps)
-    return struct_code
 
-def __code_h_new_ProbedStateBuffer_ptr():
-    h_code = "extern \"C\" ProbedStateBuffer * new_probed_state_buffer_ptr(uint32_t n);\n"
-    return h_code
-
-def __code_cpp_new_ProbedStateBuffer_ptr(psig_entries):
-    sizebyte_ps = __size_probed_state_byte(psig_entries)
-    cpp_code = """extern \"C\" ProbedStateBuffer * new_probed_state_buffer_ptr(uint32_t n){{
-    char (* buffer)[{}] = (char (*) [{}]) malloc(n*{});
-    ProbedStateBuffer * psb_ptr = (ProbedStateBuffer *) malloc(sizeof(ProbedStateBuffer));
-    psb_ptr->buffer = buffer;
-    psb_ptr->am_ps = 0;
-    return psb_ptr;
-    }}\n""".format(sizebyte_ps,sizebyte_ps,sizebyte_ps)
-    return cpp_code
-
-def __code_h_delete_ProbedStateBuffer_ptr():
-    h_code = "extern \"C\" void delete_probed_state_buffer_ptr(ProbedStateBuffer * ptr);\n"
-    return h_code
-
-def __code_cpp_delete_ProbedStateBuffer_ptr():
-    cpp_code = """extern \"C\" void delete_probed_state_buffer_ptr(ProbedStateBuffer * ptr){
-    free(ptr->buffer);
-    free(ptr);
-}\n"""
-    return cpp_code
-
-def __code_h_write_probed_state_to_buffer():
-    h_code = "void write_probed_state_to_buffer(ProbedState * ps, ProbedStateBuffer * psb);\n"
-    return h_code
-
-def __code_cpp_write_probed_state_to_buffer(psig_entries):
-    cpp_code = "void write_probed_state_to_buffer(ProbedState * ps, ProbedStateBuffer * psb){\n"
-    core_copy_code = __code_core_write_probed_state_to_buffer(
-            psig_entries,
-            '&psb->buffer[psb->am_ps][{}]'
+def code_new_ProbedStateBuffer_ptr(psig_entries):
+    size_ps = size_probed_state(psig_entries)
+    return (
+            'extern "C" ProbedStateBuffer * new_probed_state_buffer_ptr(uint32_t n)',
+            [
+                f'char (* buffer)[{size_ps}] = (char (*) [{size_ps}]) malloc(n*{size_ps});',
+                'ProbedStateBuffer * psb_ptr = (ProbedStateBuffer *) malloc(sizeof(ProbedStateBuffer));',
+                'psb_ptr->buffer = buffer;',
+                'psb_ptr->am_ps = 0;',
+                'return psb_ptr;',
+                ]
             )
-    cpp_code += core_copy_code
-    cpp_code += "    psb->am_ps += 1;\n}\n"
-    return cpp_code
 
-def __code_h_write_probed_state_to_charbuffer():
-    h_code = "void write_probed_state_to_charbuffer(char * cb, ProbedState * ps);\n"
-    return h_code
 
-def __code_cpp_write_probed_state_to_charbuffer(psig_entries):
-    cpp_code = "void write_probed_state_to_charbuffer(char * cb, ProbedState * ps){\n"
-    core_copy_code = __code_core_write_probed_state_to_buffer(
-            psig_entries,
-            "&cb[{}]"
+def code_delete_ProbedStateBuffer_ptr():
+    return (
+            'extern "C" void delete_probed_state_buffer_ptr(ProbedStateBuffer * ptr)',
+            [
+                'free(ptr->buffer);',
+                'free(ptr);',
+                ]
             )
-    cpp_code += core_copy_code
-    cpp_code += "}\n"
-    return cpp_code
-
-def __code_h_reset_ProbedStateBuffer():
-    h_code = "void reset_probed_state_buffer(ProbedStateBuffer * psb);\n"
-    return h_code
-
-def __code_cpp_reset_ProbedStateBuffer():
-    cpp_code = """void reset_probed_state_buffer(ProbedStateBuffer * psb){
-    psb->am_ps = 0;
-}\n"""
-    return cpp_code
-
-def __code_h_flush_probed_state_buffer():
-    h_code = "extern \"C\" void flush_probed_state_buffer(ProbedStateBuffer * psb, FILE * stream);\n"
-    return h_code
-
-def __code_cpp_flush_probed_state_buffer(psig_entries):
-    sizebyte_ps = __size_probed_state_byte(psig_entries)
-    cpp_code = """extern \"C\" void flush_probed_state_buffer(ProbedStateBuffer * psb, FILE * stream){{
-    for(uint32_t i=0; i<psb->am_ps; i++) {{
-        fwrite(&psb->buffer[i],{},1,stream);
-    }}
-    reset_probed_state_buffer(psb);
-}}\n""".format(sizebyte_ps)
-    return cpp_code
-
-def __code_h_probed_state_bytes(psig_entries):
-    sizebyte_ps = __size_probed_state_byte(psig_entries)
-    h_code = "const uint32_t {} = {};\n".format(probed_state_c_var,sizebyte_ps)
-    return h_code
-
-# Build the library header file based on the list
-# of probed signals
-def __code_lib_declaration(libname, psgis_entries, header_list, topm):
-    # Create the header inclusion list
-    hinc = __code_include_header(header_list)
-    # Create the functions declarations
-    fdec_code = ""
-    fdec_code += __code_h_probed_state_bytes(psgis_entries) + "\n"
-    fdec_code += __code_SimModel(topm) + "\n"
-    fdec_code += __code_ProbedState(psgis_entries) + "\n"
-    fdec_code += __code_ProbedStateBuffer(psgis_entries) + "\n"
-    fdec_code += __code_h_new_model_ptr() + "\n"
-    fdec_code += __code_h_delete_model_ptr() + "\n"
-    fdec_code += __code_h_new_probed_state_ptr() + "\n"
-    fdec_code += __code_h_new_ProbedStateBuffer_ptr() + "\n"
-    fdec_code += __code_h_delete_ProbedStateBuffer_ptr() + "\n"
-    fdec_code += __code_h_write_probed_state_to_buffer() + "\n"
-    fdec_code += __code_h_write_probed_state_to_charbuffer() + "\n"
-    fdec_code += __code_h_reset_ProbedStateBuffer() + "\n"
-    fdec_code += __code_h_flush_probed_state_buffer() + "\n"
-    fdec_code += __code_h_openfile() + "\n"
-    fdec_code += __code_h_closefile() + "\n"
-    fdec_code += __code_h_free_ptr() + "\n"
-    fdec_code += __code_h_sim_clock_cycle() + "\n"
-    fdec_code += __code_h_link_state() + "\n"
-    fdec_code += __code_h_write_probed_state() + "\n"
-    # Create the accessor declaration
-    fdec_code += "// Individualss accessors.\n"
-    for e in psgis_entries:
-        fdec_code += __code_h_accessor(e)
-    # Create the JSON dump string
-    fdec_code += "// Dump JSON string.\n"
-    fdec_code += __code_h_dump_json() + '\n'
-    # Create global code
-    head_code = "{}\n{}".format(hinc, fdec_code)
-    # Add the include barrier
-    return __code_inc_barrier(head_code, libname)
 
 
-# Build the library definition file based on the list
-# of probed signals
-def __code_lib_definition(libname, psgis_entries, topm):
-    # Add the include of the library header
-    hinc = '#include  "{}.h"\n'.format(libname)
-    # Create the functions definitions
-    fdef_code = ""
-    fdef_code += __code_cpp_new_model_ptr(topm) + "\n"
-    fdef_code += __code_cpp_delete_model_ptr() + "\n"
-    fdef_code += __code_cpp_new_probed_state_ptr() + "\n"
-    fdef_code += __code_cpp_new_ProbedStateBuffer_ptr(psgis_entries) + "\n"
-    fdef_code += __code_cpp_delete_ProbedStateBuffer_ptr() + "\n"
-    fdef_code += __code_cpp_write_probed_state_to_buffer(psgis_entries) + "\n"
-    fdef_code += __code_cpp_write_probed_state_to_charbuffer(psgis_entries) + "\n"
-    fdef_code += __code_cpp_reset_ProbedStateBuffer() + "\n"
-    fdef_code += __code_cpp_flush_probed_state_buffer(psgis_entries) + "\n"
-    fdef_code += __code_cpp_openfile() + "\n"
-    fdef_code += __code_cpp_closefile() + "\n"
-    fdef_code += __code_cpp_free_ptr() + "\n"
-    fdef_code += __code_cpp_sim_clock_cycle(topm) + "\n"
-    fdef_code += __code_cpp_link_state(psgis_entries) + "\n"
-    fdef_code += __code_cpp_write_probed_state(psgis_entries) + "\n"
-    # Create accessors definition
-    fdef_code += "// Individualss accessors.\n"
-    for e in psgis_entries:
-        fdef_code += __code_cpp_accessor(e) + "\n"
-    # Create the JSON dump string
-    fdef_code += "// Dump JSON string.\n"
-    fdef_code += __code_cpp_dump_json(psgis_entries) + '\n'
-    # Create global code
-    def_code = "{}\n{}".format(hinc, fdef_code)
-    return def_code
+def code_write_probed_state_to_buffer(psig_entries):
+    core_copy_code = code_core_write_probed_state_to_buffer(
+        psig_entries, "&psb->buffer[psb->am_ps][{}]"
+    )
+    return (
+            "void write_probed_state_to_buffer(ProbedState * ps, ProbedStateBuffer * psb)",
+            [
+                core_copy_code,
+                'psb->am_ps += 1;'
+                ]
+            )
 
-# Build the generics string to append to the classes name.
-# Required when generics are used -> verilator is appending 
-# a pair <generic><value> to the classes name in that case
-def __generics_string(generics_dict):
-    str_generics = ''
-    generics_name = generics_dict.keys()
-    for gn in generics_name:
-        gv = generics_dict[gn]
-        str_generics = '{}__{}{}'.format(str_generics,gn.upper(),gv)
-    return str_generics
+
+def code_write_probed_state_to_charbuffer(psig_entries):
+    core_copy_code = code_core_write_probed_state_to_buffer(psig_entries, "&cb[{}]")
+    return (
+            "void write_probed_state_to_charbuffer(char * cb, ProbedState * ps)",
+            [ core_copy_code, ]
+            )
+
+
+def code_reset_ProbedStateBuffer():
+    return (
+            "void reset_probed_state_buffer(ProbedStateBuffer * psb)",
+            [ 'psb->am_ps = 0;', ]
+            )
+
+
+def code_flush_probed_state_buffer(psig_entries):
+    sizebyte_ps = size_probed_state(psig_entries)
+    return (
+            'extern "C" void flush_probed_state_buffer(ProbedStateBuffer * psb, FILE * stream)',
+            [
+                f'for(uint32_t i=0; i<psb->am_ps; i++) {{',
+                f'    fwrite(&psb->buffer[i],{sizebyte_ps},1,stream);',
+                f'}}',
+                f'reset_probed_state_buffer(psb);',
+                ]
+            )
+
+
+def code_probed_state_bytes(psig_entries):
+    sizebyte_ps = size_probed_state(psig_entries)
+    return "const uint32_t {} = {};\n".format(PROBED_STATE_C_VAR, sizebyte_ps)
+
+def fn_decl(code):
+    return code[0]+';'
+
+def fn_def(code):
+    return '{} {{\n{}\n}}'.format(
+            code[0],
+            '\n'.join('    '+l for l in code[1])
+            )
+
+
+def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict):
+    functions = [
+            code_new_model_ptr(topm),
+            code_delete_model_ptr(),
+            code_new_probed_state_ptr(),
+            code_new_ProbedStateBuffer_ptr(psgis_entries),
+            code_delete_ProbedStateBuffer_ptr(),
+            code_write_probed_state_to_buffer(psgis_entries),
+            code_write_probed_state_to_charbuffer(psgis_entries),
+            code_reset_ProbedStateBuffer(),
+            code_flush_probed_state_buffer(psgis_entries),
+            code_sim_clock_cycle(topm),
+            code_link_state(psgis_entries),
+            code_write_probed_state(psgis_entries),
+            *[code_accessor(e) for e in psgis_entries],
+            code_dump_json(psgis_entries, generics_dict, topm),
+    ]
+    datastructs = [
+            code_probed_state_bytes(psgis_entries),
+            code_SimModel(topm),
+            code_ProbedState(psgis_entries),
+            code_ProbedStateBuffer(psgis_entries),
+    ]
+    header_decls = '\n'.join(
+            [f'#include "{header}"' for header in header_list] +
+            datastructs +
+            [fn_decl(fn) for fn in functions]
+            )
+    header_code = code_inc_barrier(header_decls, libname)
+    cpp_code = '\n'.join(
+            # Include the library header
+            ['#include  "{}.h"'.format(libname)] +
+            [fn_def(fn) for fn in functions]
+    )
+    return (header_code, cpp_code)
 
 # Create the library files
-def build_verilator_library(netjson_fname, libname, out_dir, generics_dict):
-    print("#########################################")
+def build_verilator_library(netlist, libname, out_dir, generics_dict):
     print("# Generating the Verilator library '{}' #".format(libname))
-    print("#########################################\n")
-    # Load the netlist file
-    with open(netjson_fname) as json_netlist:
-        netlist = json.load(json_netlist)
 
     # Search the top module
-    tm = __search_top_module(netlist["modules"])
+    tm = next(mname for mname, mod in netlist["modules"].items() if "top" in mod["attributes"])
     print("Top module identified in the hierarchy: {}\n".format(tm))
 
     # Search for the signal to probe
     print("Identified signals paths:")
-    sigsp = search_verime_attr(netlist, tm, tm)
+    sigsp = list(find_verime_nets(netlist, tm))
     for i, e in enumerate(sigsp):
         print("({}) {} ({})".format(i, e[0], e[2]))
-    print("")
 
-    # Create list of classes
-    classes_lists = []
-    for e in sigsp:
-        classes_lists += e[3]
-    uniq_lists = __get_list_unique(classes_lists)
-    print("Identified classes to include:")
-    for i,c in enumerate(uniq_lists):
-        print("({}) {}".format(i,c))
-    print("")
+    # Header list
+    head_list = ["V{}__Syms.h".format(tm)]
 
-    # Format classes list with generics
-    if len(generics_dict)>0:
-        n_uniq_lists = []
-        gstr = __generics_string(generics_dict)
-        # Iterate over each classe name
-        for cle in uniq_lists:
-            name_class = cle.split(".h")[0]
-            n_name_class = "{}{}.h".format(name_class,gstr)
-            n_uniq_lists += [n_name_class]
-        # Set new value
-        uniq_lists = n_uniq_lists
-    
-    print("Formatted classes to include:")
-    for i,c in enumerate(uniq_lists):
-        print("({}) {}".format(i,c))
-    print("")
-    
-        
-    # Build the header list
-    head_list = __create_cpp_header_list(tm,uniq_lists)
-
-    # Build the declaration code
-    lib_dec_code = __code_lib_declaration(libname, sigsp, head_list, tm)
-    lib_dec_file = out_dir + "/{}.h".format(libname)
-    with open(lib_dec_file, "w") as f:
-        f.write(lib_dec_code)
-
-    # Build the definition code
-    lib_def_code = __code_lib_definition(libname, sigsp, tm)
-    lib_def_file = out_dir + "/{}.cpp".format(libname)
-    with open(lib_def_file, "w") as f:
-        f.write(lib_def_code)
+    # Write verilator library (.cpp and .h)
+    lib = code_verilator_lib(libname, sigsp, head_list, tm, generics_dict)
+    for code, suffix in zip(lib, ('.h', '.cpp')):
+        with open(os.path.join(out_dir, libname+suffix), "w") as f:
+            f.write(code)
 
     # Return the list of design files used
-    return [__get_elab_list_files(netlist["modules"]), sigsp]
-
-
-# Create the list of file used in the architecture elaboration
-def __get_pathfile(src_attr):
-    return src_attr.split(":")[0]
-
-
-def __get_elab_list_files(modules_list):
-    file_list = []
-    print("Building design files list...")
-    for e in modules_list.keys():
-        df_module = __get_pathfile(modules_list[e]["attributes"]["src"])
-        print("Module '{}' -> {}".format(e, df_module))
-        file_list += [df_module]
-    print("")
-    return file_list
+    return (
+            [
+            module["attributes"]["src"].split(':')[0]
+            for module in netlist['modules'].values()
+            ],
+            sigsp
+            )
 
 
 # Generate the Yosys elaboration script
-def __code_yosys_elab_json_script(inc_dirs, top_mod_path, json_out_path, generics_dic):
-    script_code = ""
+def gen_yosys_commands(inc_dirs, top_mod_path, json_out_path, generics_dic):
+    yosys_commands = []
     # Create the include default options for the read_verilog command
-    def_rv_options = ""
-    hier_libdir_options = ""
-    for i, idr in enumerate(inc_dirs):
-        if i == len(inc_dirs) - 1:
-            def_rv_options += "-I{}".format(idr)
-            hier_libdir_options += "-libdir {}".format(idr)
-        else:
-            def_rv_options += "-I{} ".format(idr)
-            hier_libdir_options += "-libdir {} ".format(idr)
-    script_code += "verilog_defaults -add {}\n".format(def_rv_options)
+    def_rv_options = ' '.join(f'-I{idr}' for idr in inc_dirs)
+    yosys_commands.append(f'verilog_defaults -add {def_rv_options}')
     # Add the reading of the initial verilog top module
-    script_code += "read_verilog {}\n".format(top_mod_path)
+    yosys_commands.append(f'read_verilog {top_mod_path}')
     # Generate the generics options for the hierarchy commands
-    gen_options = ""
-    for i, gene in enumerate(generics_dic.keys()):
-        if i == len(generics_dic.keys()) - 1:
-            gen_options += "-chparam {} {}".format(gene, generics_dic[gene])
-        else:
-            gen_options += "-chparam {} {} ".format(gene, generics_dic[gene])
+    gen_options = ' '.join(f'-chparam {gene} {gval}' for gene, gval in generics_dic.items())
     # Add the elaboration commands
-    top_basename = os.path.basename(top_mod_path)
-    top_mn = top_basename.split(".")[0]
-    script_code += "hierarchy -top {} {} {}\n".format(
+    top_mn = os.path.splitext(os.path.basename(top_mod_path))[0]
+    hier_libdir_options = ' '.join(f'-libdir {idr}' for idr in inc_dirs)
+    yosys_commands.append("hierarchy -top {} {} {}".format(
         top_mn, hier_libdir_options, gen_options
-    )
-    script_code += "proc\n"
-    script_code += "write_json {}\n".format(json_out_path)
-    return script_code
+    ))
+    yosys_commands.append('proc')
+    yosys_commands.append(f'write_json {json_out_path}')
+    return yosys_commands
 
 
-def __build_yosys_elab_script(
-    inc_dirs, top_mod_path, json_out_path, generics_dic, script_path
-):
-    # Build the code
-    code2write = __code_yosys_elab_json_script(
-        inc_dirs, top_mod_path, json_out_path, generics_dic
-    )
-    # Write the file
-    with open(script_path, "w") as f:
-        f.write(code2write)
-    __OScmd("chmod 766 {}".format(script_path),0,"Fail to give yosys script permission...")
+def run_yosys(yosys_exec_path, yosys_commands):
+    args = [yosys_exec_path, '-q'] + list(
+            it.chain.from_iterable(('-p', cmd) for cmd in yosys_commands)
+            )
+    print("Yosys command", args)
+    subprocess.run(args, check=True)
 
 
-def __run_yosys_script(yosys_exec_path, script_path):
-    print("Run yosys elaboration")
-    cmd = "{} -q -s {}".format(yosys_exec_path, script_path)
-    print("RUNNING: {}".format(cmd))
-    __OScmd(cmd,0,"Fail to perform yosys synthesis...")
+class StringLines:
+    def __init__(self, s):
+        lines = s.splitlines()
+        if s.endswith('\n'):
+            lines.append('') # Preserve end-of-file '\n'
+        self.s = '\n'.join(lines)
+        self.line_lengths = [len(l) for l in lines]
+        # +1 stands for the '\n'
+        self.line_offsets = [0] + list(it.accumulate(l+1 for l in self.line_lengths))[:-1]
+        assert self.s == s
+
+    def line_offset2position(self, line, offset):
+        """Line and offset start at 1."""
+        assert offset <= self.line_lengths[line-1]
+        return self.line_offsets[line-1] + offset - 1
 
 
-# Workspace related
-def __reset_and_create_dir(workspace_dir):
-    # Delete existing workspace
-    if os.path.exists(workspace_dir):
-        print("")
-        print("### WARNING #######################################")
-        print("Directory {} found -> the directory will be deleted.".format(workspace_dir))
-        print("###################################################")
-        print("")
-        __OScmd("rm -rf {}".format(workspace_dir),0,"Fail to remove directory...")
-    # Create new workspace
-    __OScmd("mkdir -p {}".format(workspace_dir),0,"Fail to create directory...")
+def create_annotated_design(netlist, out_dir):
+    """Create a copy of all design files in out_dir, with a /* verilator public
+    */ comment appended to every wire declaration with a VERIME_ATTR
+    attribute."""
+    # Do not open twice a file if it contains multiple module declarations.
+    design_files = dict()
+    # There might be multiple module objects per module declaration (due to
+    # parameters), avoid to treat one multiple times.
+    module_srcs = set()
+    for mname, module in netlist['modules'].items():
+        src = module['attributes']['src']
+        if src not in module_srcs:
+            module_srcs.add(src)
+            fname = ':'.join(src.split(':')[:-1])
+            if fname not in design_files:
+                with open(fname, "r") as f:
+                    design_files[fname] = (StringLines(f.read()), [])
+            file_lines, inserts = design_files[fname]
+            # There might be multiple netname objects per wire declaration (due to
+            # generate blocks), avoid to treat one multiple times.
+            net_srcs = set()
+            for net_name, net in module["netnames"].items():
+                if VERIME_ATTR in net["attributes"] and net["attributes"]["src"] not in net_srcs:
+                    net_srcs.add(net["attributes"]["src"])
+                    decl = net["attributes"]["src"].split(':')[-1]
+                    start_pos, end_pos = [pos.split('.') for pos in decl.split('-')]
+                    end_line, end_offset = [int(x) for x in end_pos]
+                    pos = file_lines.line_offset2position(end_line, end_offset)
+                    # Insert the /* verilator public */ before the ';'
+                    # that follows the declaration.
+                    inserts.append(file_lines.s.index(';', pos))
+    # Write back the files with the comments inserted.
+    for fname, (fl, inserts) in design_files.items():
+        inserts.sort()
+        new_content = ' /* verilator public */ '.join(
+                fl.s[start:end] for start, end in zip([0] + inserts, inserts + [len(fl.s)])
+                )
+        with open(os.path.join(out_dir, os.path.basename(fname)), "w") as f:
+            f.write(new_content)
 
-
-def __create_dir(dir_name):
-    __OScmd("mkdir -p {}".format(dir_name),0,"Fail to create directory...")
-
-
-# Parsing for verilator annotation
-def __parse_verilated_me_signs(file_content):
-    # Search for verime attribute found in the file
-    verime_attr_found = re.findall(r"\(\*.*{}.*\*\)".format(verime_attr), file_content)
-    # Search for the verime signal assignation
-    verime_sigs = []
-    for att_match in verime_attr_found:
-        sig_name = att_match.split("{}".format(verime_attr))[1].split('"')[1].split('"')[0]
-        verime_sigs += [sig_name]
-    # Search for annotated signal declaration
-    sig_dec_annot = []
-    for vme_sig in verime_sigs:
-        sig_dec = re.findall(
-            r"\(\*.*{}.*=.*\"{}\".*\*\).*\n.*;".format(verime_attr, vme_sig),
-            file_content,
-        )
-        sig_dec_annot += sig_dec
-    # Recover signal declaration only;
-    sig_dec_only = []
-    for an_sig_dec in sig_dec_annot:
-        sig_dec_only += [an_sig_dec.split("\n")[1].lstrip()]
-    # Format signal declaration with /* verilator public */
-    # annotation
-    formated_sig_dec = []
-    for sd in sig_dec_only:
-        formated_sig_dec += [sd[:-1] + " /* verilator public */;"]
-    # Replace attribute with annotated declaration
-    ret_content = file_content
-    for sd_an, f_sd in zip(sig_dec_annot, formated_sig_dec):
-        ret_content = ret_content.replace(sd_an, f_sd)
-    return ret_content
-
-
-# Create the parsed Verilog design files
-def __parse_design_files(src_files_list, out_dir):
-    # For each design file considered, parse the attribute
-    # an annotate target signals before rewritting it
-    print("Start annotated files generation...")
-    for df in src_files_list:
-        print("Processing of '{}'...".format(df), end="")
-        # Read file content
-        with open(df, "r") as f:
-            fcontent = f.read()
-        # Parse
-        new_fcontent = __parse_verilated_me_signs(fcontent)
-        # Rewrite to new location
-        filename = os.path.basename(df)
-        new_filename = out_dir + "/{}".format(filename)
-        with open(new_filename, "w") as f:
-            f.write(new_fcontent)
-        print(" Done.")
-    print("")
-
-# Copy the .vh files from the include directory to the target directory
-def __copy_vh_files(inc_dir_list, target_dir):
-    # For each include dir in the provided list, copy all the '.vh' files
-    # to the target directory
+def copy_vh_files(inc_dir_list, target_dir):
+    """Copy the .vh files from the include directory to the target directory."""
     for idr in inc_dir_list:
-        # Check all the file to check if it has the correct extension
-        for fname in os.listdir('{}'.format(idr)):
-            if fname.endswith('.vh'):
-                pathname = '{}/{}'.format(idr,fname)
-                cmd = "cp {} {}/".format(pathname,target_dir)
-                __OScmd(cmd,0,'Fail to copy FILE \'{}\' ...'.format(pathname))
+        for fname in os.listdir(idr):
+            if fname.endswith(".vh"):
+                shutil.copy(os.path.join(idr, fname), os.path.join(target_dir, fname))
 
 
-## Create verilator config
-# Create Verilator top-level parameter
-def __verilator_param_verilog_generics(generic_dict):
-    param_string = ""
-    for i, k in enumerate(generic_dict.keys()):
-        if i == len(generic_dict.keys()) - 1:
-            param_string += "-G{}={}".format(k, generic_dict[k])
-        else:
-            param_string += "-G{}={} ".format(k, generic_dict[k])
-    return param_string
-
-
-# Create the configuration file for verilator
-def __verilator_gen_config_file(config_file, generic_dict, top_module_path):
-    # Save the generics
-    dic_cfg = {}
-    dic_cfg["GENERIC_TOP"] = __verilator_param_verilog_generics(generic_dict)
-    # Save the top level filename
-    tl_fn = os.path.basename(top_module_path)
-    dic_cfg["TOP"] = tl_fn
-    # Save the file
+def gen_config_file(config_file, generic_dict, top_module_path):
     with open(config_file, "w") as cf:
         json.dump(dic_cfg, cf)
-
-# Create the flag list for the verilator compilation
-def __verilator_compil_flags():
-    flags = ""
-    flags += "-Wno-WIDTH "
-    flags += "-Wno-PINMISSING "
-    flags += "-CFLAGS -fPIC"
-    return flags
-
-#### Argument parsing
-## Parse te generics arguments
-def __args_parse_generics(argparse_generics):
-    dic = {}
-    for e in argparse_generics:
-        ee = e[0]
-        sp_arg = ee.split("=")
-        if sp_arg[1].isnumeric():
-            dic[sp_arg[0]] = int(sp_arg[1])
-        else:
-            dic[sp_arg[0]] = sp_arg[1]
-    return dic
-
-
-#### JSON for the format
-def __am_bytes(size_bits):
-    if size_bits <= 8:
-        return 1
-    elif 8 < size_bits and size_bits <= 16:
-        return 2
-    elif 16 < size_bits and size_bits <= 32:
-        return 4
-    elif 32 < size_bits and size_bits <= 64:
-        return 8
-    else:
-        am_w32 = int(size_bits // 32)
-        if (size_bits % 32)!=0:
-            am_w32 += 1
-        return 4 * am_w32
-
-
-def __jsoncfg_sigs_dict(psgis_entries):
-    glob_dict = {}
-    bytes_total = 0
-    for e in psgis_entries:
-        e_dict = {}
-        e_dict["bytes"] = __am_bytes(e[2])
-        e_dict["bits"] = e[2]
-        bytes_total += e_dict["bytes"]
-        glob_dict[e[1]] = e_dict
-    return [glob_dict, bytes_total]
-
-
-def __jsoncfg_globalcfg_dict(psgis_entries):
-    [sig_dict, bytes_am] = __jsoncfg_sigs_dict(psgis_entries)
-    ret_dict = {"bytes": bytes_am, "sigs": sig_dict}
-    return ret_dict
-
-
-def __jsoncfg_create(psgis_entries, filename):
-    # Create the config dic
-    cfg_dic = __jsoncfg_globalcfg_dict(psgis_entries)
-    # Write to file
-    with open(filename, "w") as f:
-        json.dump(cfg_dic, f)
-
-# Build the string to pass to verilator for the pre-processor 
-# define
-def __pp_define(dic_defines):
-    str_defines = ""
-    vars_define = dic_defines.keys()
-    for vd in vars_define:
-        str_defines = '{} -CFLAGS -D{}={}'.format(str_defines,vd,dic_defines[vd])
-    return str_defines
-
-# Create sub makefile for exec or 
-def __verimemk_orule_str(cpp_file_path):
-    pref_f = os.path.basename(cpp_file_path).split('.')[0]
-    rule_txt = """{}.o: {}\n\t\t$(OBJCACHE) $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<""".format(pref_f,os.path.abspath(cpp_file_path))
-    return rule_txt
-
-def __verimemk_str(
-        top_module_path,
-        cpp_files
-        ):
-    # Fetch top module name
-    topv = os.path.basename(top_module_path).split('.')[0]
-    # include default:
-    mktxt = "default: allverime\n\n"
-    # Include generated makefile
-    mktxt += "include V{}.mk\n".format(topv)
-    mktxt += "VPATH += $(VM_USER_DIR)"
-    # Create rules for each c/cpp files
-    for cf in cpp_files:
-        mktxt = "{}\n\n{}".format(mktxt,__verimemk_orule_str(cf))
-    # create last 
-    mktxt += "\nallverime: $(VK_USER_OBJS) $(VK_GLOBAL_OBJS) $(VM_PREFIX)__ALL.a $(VM_HIER_LIBS)"
-    return mktxt
 
 
 #### Main functions
 ## Generate the verilator-me package
-def __create_verime_package(
+def create_verime_package(
     pckg_name,
     build_dir,
-    work_dir,
     inc_dir_list,
     generics_dict,
     top_module_path,
-    yosys_exec_path,
-    verilator_exec_path,
-    verilator_dir,
-    verime_pack_abspath
+    yosys_exec,
+    pckg_sw_dir=None,
+    pckg_hw_dir=None,
 ):
-    # Create the different paths
-    json_out_path = "{}/net.json".format(work_dir)
-    yosys_script_path = "{}/make_yosys.yo".format(work_dir)
+    json_out_path = os.path.join(build_dir, 'net.json')
+    if pckg_sw_dir is None:
+        pckg_sw_dir = os.path.join(build_dir, 'sw-src')
+    if pckg_hw_dir is None:
+        pckg_hw_dir = os.path.join(build_dir, 'hw-src')
 
-    pckg_dir = "{}/{}".format(build_dir, pckg_name)
-
-    pckg_hw_dir = "{}/hw-src".format(pckg_dir)
-    pckg_sw_dir = "{}/sw-src".format(pckg_dir)
-    pckg_cfg_file = "{}/config-verilator-me.json".format(pckg_dir)
-    pckg_data_format_file = "{}/config-dump.json".format(pckg_dir)
-
-    ##########################
     # Create workspace
-    __reset_and_create_dir(work_dir)
+    for d in [build_dir, pckg_sw_dir, pckg_hw_dir]:
+        os.makedirs(d, exist_ok=True)
 
-    # Create build dir
-    __reset_and_create_dir(pckg_dir)
-
-    # Create sw dir
-    __create_dir(pckg_sw_dir)
-
-    #### Verilator-me run
-    # build yosys script
-    __build_yosys_elab_script(
-        inc_dir_list, top_module_path, json_out_path, generics_dict, yosys_script_path
+    # Yosys
+    yosys_commands = gen_yosys_commands(
+        inc_dir_list, top_module_path, json_out_path, generics_dict
     )
+    run_yosys(yosys_exec, yosys_commands)
+    with open(json_out_path) as json_netlist:
+        netlist = json.load(json_netlist)
 
-    # Run yosys script
-    __run_yosys_script(yosys_exec_path, yosys_script_path)
-
-    # Build the library files
+    # Build the library files (.h and .cpp)
     [design_files_used, sigsp] = build_verilator_library(
-        json_out_path, pckg_name, pckg_sw_dir, generics_dict
+        netlist, pckg_name, pckg_sw_dir, generics_dict
     )
 
     #### Generation of the files for Verilator
     # Generate parsed file to annotate the signal
     # With /* verilator public */ signals
-    __create_dir(pckg_hw_dir)
-    __parse_design_files(design_files_used, pckg_hw_dir)
-    __verilator_gen_config_file(pckg_cfg_file, generics_dict, top_module_path)
-    __copy_vh_files(inc_dir_list,pckg_hw_dir)
+    create_annotated_design(netlist, pckg_hw_dir)
+    copy_vh_files(inc_dir_list, pckg_hw_dir)
 
-    # Create the config file for the dumping
-    __jsoncfg_create(sigsp, pckg_data_format_file)
-
-
-## Compile with verilator for the verime package
-def __compile_verime_package(
-    cpp_files,
-    verime_pack_path,
-    inc_dirs_list,
-    verilator_dir,
-    verilator_exec_path,
-    dic_define,
-    verilator_args
-):
-    ## Reset the Verilator workspace directory
-    __reset_and_create_dir(verilator_dir)
-    ## -I not working with verilator -> pass by setting CPATH value before
-    ## executing verilator. Creation of the new value.
-    cpath_new_value = ""
-    for i, d in enumerate(inc_dirs_list):
-        if i == len(inc_dirs_list) - 1:
-            cpath_new_value += "{}".format(os.path.abspath(d))
-        else:
-            cpath_new_value += "{}:".format(os.path.abspath(d))
-    # Add the path of the verime_library
-    vpack_abs_path = os.path.abspath(verime_pack_path)
-    cpath_new_value = "{}/sw-src:{}".format(vpack_abs_path, cpath_new_value)
-    # Create the list of cpp files
-    str_cpp_files = ""
-    for i, d in enumerate(cpp_files):
-        if i == len(cpp_files) - 1:
-            str_cpp_files += "{}".format(os.path.abspath(d))
-        else:
-            str_cpp_files += "{} ".format(os.path.abspath(d))
-    libname = os.path.basename(verime_pack_path)
-    str_cpp_files += " {}/sw-src/{}.cpp".format(vpack_abs_path, libname)
-    # Read the verime package to get the generics and top module
-    with open("{}/config-verilator-me.json".format(vpack_abs_path), "r") as f:
-        cfg = json.load(f)
-    # Build parameters for verilator
-    top_mod_path = "{}/hw-src/{}".format(vpack_abs_path, cfg["TOP"])
-    srcs_path = "{}/hw-src".format(vpack_abs_path)
-    generics_params = cfg["GENERIC_TOP"]
-    # Build the pre-processor define list
-    defines_str = __pp_define(dic_define) 
-    # Get the compilation flags for Verilator
-    vflags = __verilator_compil_flags()
-    # Get the verilator arguments
-    verilator_args_str = ""
-    for e in verilator_args:
-        verilator_args_str = "{} {}".format(verilator_args_str,e)
-    # Create global command
-    cmd = "CPATH={} {} --cc --build -y {} {} -Mdir {} {} {} {} {} {}".format(
-        cpath_new_value,
-        verilator_exec_path,
-        srcs_path,
-        verilator_args_str,
-        verilator_dir,
-        vflags,
-        defines_str,
-        generics_params,
-        top_mod_path,
-        str_cpp_files,
-    )
-    # Run the build command
-    print("RUNNING VERILATOR BUILD COMMAND:")
-    print(cmd)
-    print("\n\n")
-    __OScmd(cmd,0,"Fail to build pack with verilator...")
-
-    # Create the verime-makefile
-    verimemk = "{}/verime.mk".format(verilator_dir)
-    with open(verimemk,'w') as f:
-        f.write(__verimemk_str(top_mod_path,cpp_files))
-    # Run the make 
-    __OScmd("CPATH={} make -C {} -f {}".format(cpath_new_value,verilator_dir,verimemk),0,"Fail to build with verime makefile...")
 
 # Main program
 if __name__ == "__main__":
@@ -1271,128 +601,59 @@ if __name__ == "__main__":
         "-y",
         "--ydir",
         default=[],
-        action="append",
-        nargs="+",
+        action="extend",
+        nargs='+',
+        type=str,
         help="Directory for the module search.",
-    )
-    parser.add_argument(
-        "-I",
-        "--Idir",
-        default=[],
-        action="append",
-        nargs="+",
-        help="Directory to search for include.",
     )
     parser.add_argument(
         "-g",
         "--generics",
-        default=[],
-        action="append",
-        nargs="+",
+        action="extend",
+        nargs='+',
+        type=str,
         help="Verilog generic value, as -g<Id>=<Value>.",
     )
     parser.add_argument(
-        "-d",
-        "--define",
-        default=[],
-        action="append",
-        nargs="+",
-        help="C++ preprocessor define, as -d<Id>=<Value>.",
-    )
-    parser.add_argument(
-        "-top",
+        "-t",
         "--top",
-        default=None,
+        required=True,
         help="Path to the top module file, e.g. /home/user/top.v.",
     )
     parser.add_argument("--yosys-exec", default="yosys", help="Yosys executable.")
     parser.add_argument(
-        "--verime-work", default="/tmp/verime-work", help="Verilator-me workspace."
-    )
-    parser.add_argument(
         "--pack",
-        default=None,
-        help="The path to the Verilator-me package used. Path represented as <dirname>/<packname>.",
+        required=True,
+        help="The Verilator-me package name.",
     )
     parser.add_argument(
-        "-cpp",
-        "--cpp-files",
-        default=[],
-        action="append",
-        nargs="+",
-        help="C++ file to use in the compilation process. If specified, the compilation mode is used.",
+        "--build-dir",
+        default=".",
+        help="The build directory.",
     )
     parser.add_argument(
-        "--verilator-work",
-        default="/tmp/verime-verilator-work",
-        help="Verilator-me workspace for verilator.",
+        "--sw-dir",
+        help="Directory to store generated .cpp and .h files.",
     )
     parser.add_argument(
-        "--verilator-exec", default="verilator", help="Verilator executable."
+        "--hw-dir",
+        help="Directory to store generated verilog files.",
     )
-    parser.add_argument(
-        "-varg",
-        "--verilator-arg",
-        default=[],
-        action="append",
-        nargs="+",
-        help="Verilator argument to append to the compilation process. Should be quoted if more than one word."
-    )
-
     args = parser.parse_args()
 
-    ## Check args
-    if len(args.cpp_files) == 0:
-        if args.top == None:
-            print("ERROR: A top module should be provided.")
-            quit()
-    if args.pack == None:
-        print("ERROR: A package should be provided.")
-        quit()
+    dic_gen = {}
+    for e in args.generics:
+        name, val = e.split('=')
+        dic_gen[name] = int(val) if val.isnumeric() else val
 
-    # Create list of arguments
-    list_y = []
-    for e in args.ydir:
-        list_y += [e[0]]
-
-    list_I = []
-    for e in args.Idir:
-        list_I += [e[0]]
-
-    list_cpp = []
-    for e in args.cpp_files:
-        list_cpp += [e[0]]
-
-    list_verilator_arg = []
-    for e in args.verilator_arg:
-        list_verilator_arg += [e[0]]
-
-    dic_gen = __args_parse_generics(args.generics)
-    dic_define = __args_parse_generics(args.define)
-    
-    # Check if it is compilation of building
-    if len(args.cpp_files) == 0:
-        # Building package
-        __create_verime_package(
-            os.path.basename(os.path.abspath(args.pack)),
-            os.path.dirname(os.path.abspath(args.pack)),
-            args.verime_work,
-            list_y,
-            dic_gen,
-            args.top,
-            "yosys",
-            args.verilator_exec,
-            args.verilator_work,
-            os.path.abspath(args.pack)
-        )
-    else:
-        # Compile package
-        __compile_verime_package(
-            list_cpp,
-            os.path.abspath(args.pack),
-            list_I,
-            args.verilator_work,
-            args.verilator_exec,
-            dic_define,
-            list_verilator_arg
-        )
+    # Building package
+    create_verime_package(
+        args.pack,
+        os.path.abspath(args.build_dir),
+        args.ydir,
+        dic_gen,
+        args.top,
+        "yosys",
+        pckg_sw_dir=args.sw_dir,
+        pckg_hw_dir=args.hw_dir,
+    )
