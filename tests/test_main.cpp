@@ -1,4 +1,8 @@
-#include "my_funky_lib.h"
+#include "testverime_lib.h"
+void print_test(){
+    printf("Test %d\n",0);
+}
+
 int main(int argc, char** argv) {
     // Create Simulation model
     SimModel * sm = new_model_ptr();

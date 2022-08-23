@@ -637,9 +637,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     dic_gen = {}
-    for e in args.generics:
-        name, val = e.split('=')
-        dic_gen[name] = int(val) if val.isnumeric() else val
+    if args.generics != None:
+        for e in args.generics:
+            name, val = e.split('=')
+            dic_gen[name] = int(val) if val.isnumeric() else val
 
     # Building package
     create_verime_package(
