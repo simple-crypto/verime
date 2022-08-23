@@ -544,11 +544,6 @@ def copy_vh_files(inc_dir_list, target_dir):
                 shutil.copy(os.path.join(idr, fname), os.path.join(target_dir, fname))
 
 
-def gen_config_file(config_file, generic_dict, top_module_path):
-    with open(config_file, "w") as cf:
-        json.dump(dic_cfg, cf)
-
-
 #### Main functions
 ## Generate the verilator-me package
 def create_verime_package(
@@ -653,7 +648,7 @@ if __name__ == "__main__":
         args.ydir,
         dic_gen,
         args.top,
-        "yosys",
+        args.yosys_exec,
         pckg_sw_dir=args.sw_dir,
         pckg_hw_dir=args.hw_dir,
     )
