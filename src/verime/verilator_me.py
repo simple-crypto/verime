@@ -263,7 +263,7 @@ def code_dump_json(psig_entries, generics_dict, top_module):
     cfg_dic = {
             "bytes": size_probed_state(psig_entries),
             "sigs": sig_dict,
-            "GENERIC_TOP": ' '.join(f'-G{gn}={gv}' for gn, gv in generics_dict.items()),
+            "GENERIC_TOP": generics_dict,
             "TOP": top_module
             }
     # Create the JSON string and replace the quote for C formatting
@@ -654,10 +654,16 @@ def create_verime_package(
     wheel_src_dir = os.path.join(wheel_dir, pckg_name)
     os.makedirs(wheel_src_dir, exist_ok=True)
     with open(os.path.join(wheel_src_dir, '__init__.py'), 'w') as f:
-        f.write('from .simu import json_description, simu_batch\n')
+        exp_values = ['Simu', 'SIGNALS', 'SIG_BITS', 'GENERICS']
+        f.write('from .pysimu import ' + ', '.join(exp_values) + '\n')
+        f.write('__all__ = [' + ', '.join(f'"{e}"' for e in exp_values) + ']\n')
     for fname in ('pyproject.toml', 'pymod.cpp', 'setup.py', 'MANIFEST.in'):
         s = string.Template((resources / fname).read_text()).substitute(template_params)
         with open(os.path.join(wheel_dir, fname), 'w') as f:
+            f.write(s)
+    for fname in ('pysimu.py',):
+        s = string.Template((resources / fname).read_text()).substitute(template_params)
+        with open(os.path.join(wheel_src_dir, fname), 'w') as f:
             f.write(s)
 
 

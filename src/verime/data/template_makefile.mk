@@ -1,8 +1,4 @@
 
-# FIXME
-PYTHON_INCLUDE=/usr/include/python3.8
-VERILATOR_CFLAGS += -I$(PYTHON_INCLUDE)
-
 VERILIB=$(BUILD_DIR)/V$(IMPLEM_NAME)__ALL.a
 
 VERILATOR_CFLAGS += -fPIC
@@ -44,7 +40,7 @@ pywheel/%: %
 	cp $< $@
 
 wheel: pywheel/simu.a
-	cd pywheel && python -m build . -o ..
+	cd pywheel && python3 -m build . -o ..
 
 .PHONY: all
 

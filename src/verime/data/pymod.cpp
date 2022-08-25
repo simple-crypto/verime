@@ -51,7 +51,7 @@ static PyObject * simu_batch(PyObject *self, PyObject *args) {
     if (states_buf.shape[2] != probed_state_bytes) {
         PyErr_SetString(PyExc_ValueError, "Third dimension of probes_buf must be probed_state_bytes.");
         err = 1;
-        goto free_all;
+        goto free_states;
     }
     batch_size = states_buf.shape[0];
     max_n_saves = states_buf.shape[1];
@@ -122,8 +122,6 @@ PyDoc_STRVAR(
     );
 
 // FIXME export constant probed_state_bytes as python constant
-//
-// FIXME build: make this file not include anything from verilator
 
 static PyObject * json_description(PyObject *self, PyObject *args) {
     return Py_BuildValue("s", dump_json());

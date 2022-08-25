@@ -1,7 +1,6 @@
 
 from setuptools import Extension, setup, find_packages
 
-print(find_packages())
 setup(
         name = "$package",
         version = "0.1",

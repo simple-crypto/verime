@@ -28,7 +28,6 @@ extern "C" int simulate_execution_buffer_batch(
     // Link the model
     link_state(sm,state);
     size_t max_n_saves = cycles_alloc;
-    Prober p = Prober { buffer, 0, max_n_saves, state };
     size_t data_call_size = data_size / size_batch;
 
     if (buffer_size < probed_state_bytes * cycles_alloc * size_batch) {
@@ -36,6 +35,7 @@ extern "C" int simulate_execution_buffer_batch(
     }
 
     for (size_t r=0; r<size_batch; r++) {
+        Prober p = Prober { buffer, 0, max_n_saves, state };
         run_simu(
                 sm,
                 &p,
