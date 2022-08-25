@@ -372,6 +372,9 @@ def code_probed_state_bytes(psig_entries):
     sizebyte_ps = size_probed_state(psig_entries)
     return "const uint32_t {} = {};\n".format(PROBED_STATE_C_VAR, sizebyte_ps)
 
+def code_fn_probed_state_bytes():
+    return ('extern "C" uint32_t get_probed_state_bytes()', ['return probed_state_bytes;'])
+
 
 def code_Prober():
     return fn_def((
@@ -426,6 +429,7 @@ def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict)
             *[code_accessor(e) for e in psgis_entries],
             code_dump_json(psgis_entries, generics_dict, topm),
             code_save_state(),
+            code_fn_probed_state_bytes(),
     ]
     datastructs = [
             code_probed_state_bytes(psgis_entries),
@@ -618,14 +622,13 @@ def create_verime_package(
 
     # Generate wrapper files:
     # - simulation_runner.[ch]: execute batch simulations of the circuit
-    # - pymod.cpp: python interface
     # - simu.cpp: user --simu file
     resources = resource_files(__package__) / 'data'
     #resource_loader = lambda fname: importlib.resources.read_text('verime.data', fname)
     template_params = {
             'package': pckg_name,
             }
-    for fname in ('simulation_runner.h', 'simulation_runner.cpp', 'pymod.cpp'):
+    for fname in ('simulation_runner.h', 'simulation_runner.cpp'):
         dst = os.path.join(pckg_sw_dir, fname)
         s = (resources / fname).read_text()
         s = string.Template(s).substitute(template_params)
@@ -645,6 +648,17 @@ def create_verime_package(
     s = '\n'.join(f'{k}={v}' for k, v in makefile_vars) + '\n' + s
     with open(os.path.join(build_dir, 'Makefile'), 'w') as f:
         f.write(s)
+
+    wheel_dir = os.path.join(build_dir, 'pywheel')
+    os.makedirs(wheel_dir, exist_ok=True)
+    wheel_src_dir = os.path.join(wheel_dir, pckg_name)
+    os.makedirs(wheel_src_dir, exist_ok=True)
+    with open(os.path.join(wheel_src_dir, '__init__.py'), 'w') as f:
+        f.write('from .simu import json_description, simu_batch\n')
+    for fname in ('pyproject.toml', 'pymod.cpp', 'setup.py', 'MANIFEST.in'):
+        s = string.Template((resources / fname).read_text()).substitute(template_params)
+        with open(os.path.join(wheel_dir, fname), 'w') as f:
+            f.write(s)
 
 
 # Main program

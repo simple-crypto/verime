@@ -12,14 +12,13 @@ LDLIBS = -pthread -lpthread -latomic
 VERIME_SRC_GEN = \
 	     $(BUILD_DIR)/verime_lib \
 	     $(BUILD_DIR)/simulation_runner \
-	     $(BUILD_DIR)/pymod \
 	     $(BUILD_DIR)/simu
 
-VERIME_CPP = $(addsuffix .cpp,$(VERIME_SRC_GEN))
+SIMU_O = $(addsuffix .o,$(VERIME_SRC_GEN)) $(BUILD_DIR)/verilated.o
 
 CPP=g++
 
-all: $(PACK_NAME).so
+all: wheel
 
 $(VERILIB):
 	verilator \
@@ -37,11 +36,15 @@ $(BUILD_DIR)/verilated.o: $(VERILIB)
 $(BUILD_DIR)/%.o: $(BUILD_DIR)/%.cpp $(VERILIB)
 	make -C $(BUILD_DIR) -f V$(IMPLEM_NAME).mk $(notdir $@)
 
-$(PACK_NAME).so: \
-	$(addsuffix .o,$(VERIME_SRC_GEN)) \
-	$(BUILD_DIR)/verilated.o \
-	$(VERILIB)
-	$(CPP) -shared $(LDLIBS) $^ -o $@
+simu.a: $(VERILIB) $(SIMU_O)
+	cp $< $@
+	ar rs $@ $(SIMU_O)
+
+pywheel/%: %
+	cp $< $@
+
+wheel: pywheel/simu.a
+	cd pywheel && python -m build . -o ..
 
 .PHONY: all
 

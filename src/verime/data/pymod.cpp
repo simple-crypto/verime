@@ -6,17 +6,31 @@
 #include <stddef.h>
 #include <string.h>
 
-#include  "verime_lib.h"
-#include  "simulation_runner.h"
+// Defined in simu.a
+extern "C" int simulate_execution_buffer_batch(
+        char * buffer,
+        size_t buffer_size,
+        char* data,
+        size_t data_size,
+        size_t size_batch,
+        size_t cycles_alloc
+        );
 
-#define PYMODULE_NAME "$package"
-#define PYMODULE_INIT PyInit_$package
+// Defined in simu.a
+extern "C" const char* dump_json();
+
+// Defined in simu.a
+extern "C" uint32_t get_probed_state_bytes();
+
+#define PYMODULE_NAME "$package.simu"
+#define PYMODULE_INIT PyInit_simu
 
 static PyObject * simu_batch(PyObject *self, PyObject *args) {
     PyObject *states_obj, *indata_obj;
     Py_buffer states_buf, indata_buf;
     Py_ssize_t batch_size, max_n_saves, indata_size;
     int err=0;
+    uint32_t probed_state_bytes = get_probed_state_bytes();
 
     if (!PyArg_ParseTuple(args, "OO", &states_obj, &indata_obj))
         return NULL;
