@@ -711,6 +711,5 @@ def main():
         dic_gen,
         args.top,
         args.yosys_exec,
-        "yosys",
         args.simu,
     )
