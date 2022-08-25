@@ -1,4 +1,4 @@
-#! /bin/env python3
+
 import math
 import json
 import re
@@ -7,6 +7,12 @@ import argparse
 import shutil
 import subprocess
 import itertools as it
+import string
+
+try:
+    from importlib.resources import files as resource_files
+except ImportError:
+    from importlib_resources import files as resource_files
 
 # Constant attribute to look for.
 # Attributed signal will be considered in the file
@@ -124,9 +130,9 @@ def size_probed_state(psig_entries):
 
 def code_SimModel(sim_top_module):
     return fn_def((
-        'struct SimModel',
+        'typedef struct',
         ['VerilatedContext * contextp;', f'V{sim_top_module} * vtop;']
-        )) + ';'
+        )) + 'SimModel;'
 
 def code_new_model_ptr(sim_top_module):
     return (
@@ -134,7 +140,7 @@ def code_new_model_ptr(sim_top_module):
             [
                 f'VerilatedContext * contextp = new VerilatedContext;',
                 f'V{sim_top_module} * top = new V{sim_top_module}(contextp);',
-                f'SimModel * sm_ptr = (struct SimModel *) malloc(sizeof(struct SimModel));',
+                f'SimModel * sm_ptr = (SimModel *) malloc(sizeof(SimModel));',
                 f'sm_ptr->contextp = contextp;',
                 f'sm_ptr->vtop = top;',
                 f'return sm_ptr;',
@@ -175,37 +181,32 @@ def code_inc_barrier(code, libname):
     )
     return barried_code
 
-
-def code_accessor(entry):
-    # Get the type of the return value
-    word_size, is_array, _ = width2storage(entry[2])
-    return_type = {
+def sim_type(l):
+    word_size, is_array, _ = width2storage(l)
+    return {
         (1, False): "uint8_t",
         (2, False): "uint16_t",
         (4, False): "uint32_t",
         (8, False): "uint64_t",
         (4, True): "uint32_t *",
     }[(word_size, is_array)]
+
+def code_accessor(entry):
     # Accessor function name
     fname = "get_{}".format(entry[1])
     return (
-            "{} {}(SimModel * sm)".format(return_type, fname),
+            "{} {}(SimModel * sm)".format(sim_type(entry[2]), fname),
             ["return sm->vtop->{};".format(__create_cpp_model_var(entry[0]))],
             )
 
+
 def code_ProbedState_element(entry):
     """Create the code for the ProbedState structure."""
-    l = entry[2]
-    if l <= 8:
-        return "uint8_t * {};".format(entry[1])
-    elif 8 < l and l <= 16:
-        return "uint16_t * {};".format(entry[1])
-    elif 16 < l and l <= 32:
-        return "uint32_t * {};".format(entry[1])
-    elif 32 < l and l <= 64:
-        return "uint64_t * {};".format(entry[1])
+    word_size, is_array, array_length = width2storage(entry[2])
+    if is_array:
+        return f'uint32_t (* {entry[1]})[{array_length}];'
     else:
-        return "uint32_t (* {})[{}];".format(entry[1], math.ceil(l/32))
+        return f'{sim_type(entry[2])} * {entry[1]};'
 
 
 def code_ProbedState(entries):
@@ -268,7 +269,7 @@ def code_dump_json(psig_entries, generics_dict, top_module):
     # Create the JSON string and replace the quote for C formatting
     json_str = json.dumps(cfg_dic).replace('"', '\\"')
     return (
-            "const char * dump_json()",
+            'extern "C" const char * dump_json()',
             [f'return "{json_str}";']
             )
 
@@ -371,6 +372,33 @@ def code_probed_state_bytes(psig_entries):
     sizebyte_ps = size_probed_state(psig_entries)
     return "const uint32_t {} = {};\n".format(PROBED_STATE_C_VAR, sizebyte_ps)
 
+
+def code_Prober():
+    return fn_def((
+            'struct Prober',
+            [
+                'char* buffer;'
+                'size_t n_saves;'
+                'size_t max_n_saves;'
+                'ProbedState *state;'
+                ]
+            )) + ';'
+
+
+def code_save_state():
+    return (
+            'int save_state(Prober *p)',
+            [
+                'if (p->n_saves == p->max_n_saves) {',
+                '    return 1;',
+                '}',
+                'write_probed_state_to_charbuffer(p->buffer + p->n_saves * probed_state_bytes, p->state);',
+                'p->n_saves += 1;',
+                'return 0;',
+                ]
+            )
+
+
 def fn_decl(code):
     return code[0]+';'
 
@@ -397,16 +425,19 @@ def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict)
             code_write_probed_state(psgis_entries),
             *[code_accessor(e) for e in psgis_entries],
             code_dump_json(psgis_entries, generics_dict, topm),
+            code_save_state(),
     ]
     datastructs = [
             code_probed_state_bytes(psgis_entries),
             code_SimModel(topm),
             code_ProbedState(psgis_entries),
             code_ProbedStateBuffer(psgis_entries),
+            code_Prober(),
     ]
     header_decls = '\n'.join(
             [f'#include "{header}"' for header in header_list] +
             datastructs +
+            [f'#define GENERIC_{k.upper()} {v}' for k, v in generics_dict.items()] +
             [fn_decl(fn) for fn in functions]
             )
     header_code = code_inc_barrier(header_decls, libname)
@@ -451,7 +482,8 @@ def build_verilator_library(netlist, libname, out_dir, generics_dict):
 
 
 # Generate the Yosys elaboration script
-def gen_yosys_commands(inc_dirs, top_mod_path, json_out_path, generics_dic):
+def gen_yosys_commands(inc_dirs, top_mod_path, json_out_path, generics_dic,
+        top_module_name):
     yosys_commands = []
     # Create the include default options for the read_verilog command
     def_rv_options = ' '.join(f'-I{idr}' for idr in inc_dirs)
@@ -461,10 +493,9 @@ def gen_yosys_commands(inc_dirs, top_mod_path, json_out_path, generics_dic):
     # Generate the generics options for the hierarchy commands
     gen_options = ' '.join(f'-chparam {gene} {gval}' for gene, gval in generics_dic.items())
     # Add the elaboration commands
-    top_mn = os.path.splitext(os.path.basename(top_mod_path))[0]
     hier_libdir_options = ' '.join(f'-libdir {idr}' for idr in inc_dirs)
     yosys_commands.append("hierarchy -top {} {} {}".format(
-        top_mn, hier_libdir_options, gen_options
+        top_module_name, hier_libdir_options, gen_options
     ))
     yosys_commands.append('proc')
     yosys_commands.append(f'write_json {json_out_path}')
@@ -553,14 +584,14 @@ def create_verime_package(
     generics_dict,
     top_module_path,
     yosys_exec,
-    pckg_sw_dir=None,
-    pckg_hw_dir=None,
+    simu_file,
+    sw_dir_name = 'build',
+    hw_dir_name = 'hw_src',
 ):
     json_out_path = os.path.join(build_dir, 'net.json')
-    if pckg_sw_dir is None:
-        pckg_sw_dir = os.path.join(build_dir, 'sw-src')
-    if pckg_hw_dir is None:
-        pckg_hw_dir = os.path.join(build_dir, 'hw-src')
+    pckg_sw_dir = os.path.join(build_dir, sw_dir_name)
+    pckg_hw_dir = os.path.join(build_dir, hw_dir_name)
+    top_module_name = os.path.splitext(os.path.basename(top_module_path))[0]
 
     # Create workspace
     for d in [build_dir, pckg_sw_dir, pckg_hw_dir]:
@@ -568,7 +599,7 @@ def create_verime_package(
 
     # Yosys
     yosys_commands = gen_yosys_commands(
-        inc_dir_list, top_module_path, json_out_path, generics_dict
+        inc_dir_list, top_module_path, json_out_path, generics_dict, top_module_name
     )
     run_yosys(yosys_exec, yosys_commands)
     with open(json_out_path) as json_netlist:
@@ -576,7 +607,7 @@ def create_verime_package(
 
     # Build the library files (.h and .cpp)
     [design_files_used, sigsp] = build_verilator_library(
-        netlist, pckg_name, pckg_sw_dir, generics_dict
+        netlist, 'verime_lib', pckg_sw_dir, generics_dict
     )
 
     #### Generation of the files for Verilator
@@ -585,9 +616,39 @@ def create_verime_package(
     create_annotated_design(netlist, pckg_hw_dir)
     copy_vh_files(inc_dir_list, pckg_hw_dir)
 
+    # Generate wrapper files:
+    # - simulation_runner.[ch]: execute batch simulations of the circuit
+    # - pymod.cpp: python interface
+    # - simu.cpp: user --simu file
+    resources = resource_files(__package__) / 'data'
+    #resource_loader = lambda fname: importlib.resources.read_text('verime.data', fname)
+    template_params = {
+            'package': pckg_name,
+            }
+    for fname in ('simulation_runner.h', 'simulation_runner.cpp', 'pymod.cpp'):
+        dst = os.path.join(pckg_sw_dir, fname)
+        s = (resources / fname).read_text()
+        s = string.Template(s).substitute(template_params)
+        with open(dst, 'w') as f:
+            f.write(s)
+    shutil.copy(simu_file, os.path.join(pckg_sw_dir, 'simu.cpp'))
+
+    # Generate Makefile
+    makefile_vars = [
+            ('PACK_NAME', pckg_name),
+            ('BUILD_DIR', sw_dir_name),
+            ('VERILOG_PARAMS', ' '.join(f'{gn}={gv}' for gn, gv in generics_dict.items())),
+            ('IMPLEM_NAME', top_module_name),
+            ('HW_SRC', hw_dir_name),
+            ]
+    s = (resources / 'template_makefile.mk').read_text()
+    s = '\n'.join(f'{k}={v}' for k, v in makefile_vars) + '\n' + s
+    with open(os.path.join(build_dir, 'Makefile'), 'w') as f:
+        f.write(s)
+
 
 # Main program
-if __name__ == "__main__":
+def main():
     # Parsing arguments
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -622,17 +683,14 @@ if __name__ == "__main__":
         help="The Verilator-me package name.",
     )
     parser.add_argument(
+        "--simu",
+        required=True,
+        help="Path to the C++ file defining run_simu",
+    )
+    parser.add_argument(
         "--build-dir",
         default=".",
         help="The build directory.",
-    )
-    parser.add_argument(
-        "--sw-dir",
-        help="Directory to store generated .cpp and .h files.",
-    )
-    parser.add_argument(
-        "--hw-dir",
-        help="Directory to store generated verilog files.",
     )
     args = parser.parse_args()
 
@@ -642,6 +700,9 @@ if __name__ == "__main__":
             name, val = e.split('=')
             dic_gen[name] = int(val) if val.isnumeric() else val
 
+    if args.simu[-4:] not in ('.cpp', '.cxx'):
+        raise ValueError("--simu parameter must be a C++ file.")
+
     # Building package
     create_verime_package(
         args.pack,
@@ -650,6 +711,6 @@ if __name__ == "__main__":
         dic_gen,
         args.top,
         args.yosys_exec,
-        pckg_sw_dir=args.sw_dir,
-        pckg_hw_dir=args.hw_dir,
+        "yosys",
+        args.simu,
     )

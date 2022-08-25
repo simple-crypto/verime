@@ -1,2 +1,3 @@
 src/verilator_me_package_cmomin.egg-info/*
 build/*
+__pycache__
