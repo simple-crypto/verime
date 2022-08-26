@@ -35,7 +35,7 @@ extern "C" int simulate_execution_buffer_batch(
     }
 
     for (size_t r=0; r<size_batch; r++) {
-        Prober p = Prober { buffer, 0, max_n_saves, state };
+        Prober p = Prober { buffer + r * max_n_saves * probed_state_bytes, 0, max_n_saves, state };
         run_simu(
                 sm,
                 &p,
