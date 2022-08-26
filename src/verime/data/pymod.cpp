@@ -121,8 +121,6 @@ PyDoc_STRVAR(
     "\tInput data bytes for each execution (indata_length is arbitrary)."
     );
 
-// FIXME export constant probed_state_bytes as python constant
-
 static PyObject * json_description(PyObject *self, PyObject *args) {
     return Py_BuildValue("s", dump_json());
 }
