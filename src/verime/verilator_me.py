@@ -654,7 +654,7 @@ def create_verime_package(
     wheel_src_dir = os.path.join(wheel_dir, pckg_name)
     os.makedirs(wheel_src_dir, exist_ok=True)
     with open(os.path.join(wheel_src_dir, '__init__.py'), 'w') as f:
-        exp_values = ['Simu', 'SIGNALS', 'SIG_BITS', 'GENERICS']
+        exp_values = ['Simu', 'PROBED_STATE_BYTES', 'SIG_BYTES', 'SIGNALS', 'SIG_BITS', 'GENERICS']
         f.write('from .pysimu import ' + ', '.join(exp_values) + '\n')
         f.write('__all__ = [' + ', '.join(f'"{e}"' for e in exp_values) + ']\n')
     for fname in ('pyproject.toml', 'pymod.cpp', 'setup.py', 'MANIFEST.in'):

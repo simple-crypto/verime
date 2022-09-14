@@ -6,7 +6,9 @@ import itertools as it
 
 _desc = json.loads(json_description())
 PROBED_STATE_BYTES =_desc["bytes"]
-SIG_BYTES = list(desc["bytes"] for desc in _desc["sigs"].values())
+_list_bytes = list(desc["bytes"] for desc in _desc["sigs"].values())
+#SIG_BYTES = list(desc["bytes"] for desc in _desc["sigs"].values())
+SIG_BYTES = {sig: desc["bytes"] for sig, desc in json.loads(json_description())["sigs"].items()}
 SIGNALS = list(_desc["sigs"].keys())
 SIG_BITS = {sig: desc["bits"] for sig, desc in json.loads(json_description())["sigs"].items()}
 GENERICS = _desc["GENERIC_TOP"] 
@@ -15,7 +17,7 @@ class Simu:
     sig_slices = {
             sig: slice(offset-desc["bytes"], offset)
             for offset, (sig, desc) in zip(
-                it.accumulate(SIG_BYTES),
+                it.accumulate(_list_bytes),
                 json.loads(json_description())["sigs"].items()
                 )
             }
