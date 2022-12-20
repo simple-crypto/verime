@@ -9,7 +9,6 @@ localparam N = 4;
 reg clk;
 reg rst;
 
-wire [N-1:0] cnt_value;
 reg [N-1:0] cnt_bound;
 
 reg start;
@@ -23,7 +22,6 @@ counter #(.N(N))
 dut(
     .clk(clk),
     .rst(rst),
-    .cnt_value(cnt_value),
     .cnt_bound(cnt_bound),
     .start(start),
     .busy(busy)

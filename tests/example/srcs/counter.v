@@ -7,7 +7,6 @@ module counter
 (
     input clk,
     input rst,
-    output [N-1:0] cnt_value,
     input [N-1:0] cnt_bound,
     input start,
     output busy
@@ -79,6 +78,5 @@ always@(*) begin
 end
 
 assign busy = state==WAIT;
-assign cnt_value = counter_state;
 
 endmodule
