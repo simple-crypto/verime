@@ -1,12 +1,20 @@
 // 1-bit full adder
 module FA1bit
 (
-    input a,
-    input b,
-    input cin,
-    output s,
-    output cout
+    a,
+    b,
+    cin,
+    s,
+    cout
 );
+
+(* verilator_me = "FA1_ina" *)
+input a;
+(* verilator_me = "FA1_inb" *)
+input b;
+input cin;
+output s;
+output cout;
 
 
 wire s_tmp;

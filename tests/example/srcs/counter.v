@@ -14,6 +14,7 @@ module counter
 );
 
 // Register to hold the value
+(* verilator_me = "counter_state" *)
 reg [N-1:0] counter_state;
 wire [N-1:0] counter_nextstate;
 reg inc_counter, rst_counter;
@@ -40,7 +41,7 @@ always@(posedge clk)
 if(rst_counter) begin
     bound <= cnt_bound;
 end 
-assign end_cnt = counter_state == bound;
+wire end_cnt = counter_state == bound;
 
 // FSM
 localparam IDLE=0,
