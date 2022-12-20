@@ -1,33 +1,26 @@
 # verilator-me
 
-Tool to ease the generation of oracle for HW circuit analysis based on the Verilator tool.
+In the context of hardware (HW) implementation, side-channel analysis (SCA) usually requires to have access to the value of internal signals of a target circuitry thanks to a so-called circuit oracle. The implementation of the latter  is usually time consuming (e.g., each probed internal value should be modeled and any modification of the original circuitry implies to rewrite the circuit oracle) and/or achieves poor performances. 
 
-The tool automatically generates a C++ library with top level function to
-access the signals specified by the user in the Verilog code.  The goal of the
-tool is to ease the probing of specific signals values inside a complex HW
-architecture.  
+The Verime (for Verilator-me) tool is proposed to tackle this issues. In particular, the latter aims to automatically generate a prediction library of 
+any arbitrary circuitry described in Verilog. It relies on the Verilator tools in order to achieve competitive simulation performances. More into the details, the computation of the internal states values if perfomed by simulating the circuit during an arbitrary amount of clock cycle thanks to a Verilator backend. Verilator is a powerful tool, but requires some expertise and predicting certain internal states using the `\* verilator public *\` pragma can be challenging and time consuming to setup for a non-experienced user. Based on that, the Verime tools acts as a wrapper and aims to (significantly) reduce the evaluator work: it automatically generates the C++ Verilator backend code and generates a user friendly python package. 
 
-In short, the workflow works as follows:
+In short, the workflow is as follows:
 1. Annotate the Verilog source files with the attribute (\* verilator\_me =
-   "sig\_name" \*). Each annotated signals will then be used in the library
-   generation.
-1. Run the verilator-me tool to generate the top level library to be used with
-   Verilator.
-1. Write the main function to be used by the Verilator compilation. For this
-   function, the user should specify the input/output behavior of the HW module
-   considered. For this, he can directly set the value of the input and use the
-   top level functions provided by the generated library.  
-1. Compile the design with Verilator and run the built executable.
+   "sig\_name" \*). Verime will then track the annotaded signals (based on a netlist obtained with Yosys) and generate the
+   C++ Verilator code to simulate and keep track of their values during an execution. 
+1. Write a C++ simulation wrapper for the top-level module. In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It is also used to indicate to Verime which cycle to probe (i.e., all, some, ...). The Verime wrapper generate top-level function to ease the integration. More info in the following Sections. 
+1. Run the Verime tool to build the python package. The later can then be installed as any other python package with the pip utility.
+1. Integrate the package in your custom flow. 
 
 
 ## Dependencies
 
-* [Yosys](http://www.clifford.at/yosys/) (Yosys 0.9+4081 tested)
-* [Verilator](https://www.veripool.org/verilator/) (Verilator 4.213 devel
-  tested, should have been built with CFLAGS=-fPIC for shared library
-  generation)
+* [Yosys](http://www.clifford.at/yosys/) (Yosys 0.20 (git sha1 4fcb95ed0, gcc 9.4.0-1ubuntu1~20.04.1 -fPIC -Os) tested)
+* [Verilator](https://www.veripool.org/verilator/) (Verilator 4.220 2022-03-12 rev v4.220 tested)
 * Python (Python 3.8.10 tested)
-* bash on Unix system (Ubuntu 20.04.3)
+* GNU Make (v4.2.1 Built for x86_64-pc-linux-gnu tested)
+* bash on Unix system (GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu) on Ubuntu 20.04.3 tested)
 
 Currently, the package is not on Pypi and the user should install the following
 tool in order to build and install Verilator-me.
@@ -36,17 +29,10 @@ tool in order to build and install Verilator-me.
 * python3.8-venv 
 
 ## Installation
-The following commands allow to install the Verilator-me tool
-```
-make
-make install
-```
-In a same way, the following command allows to uninstall the tool
-```
-make uninstall
-```
-It has to be noted that these commands are just building a python wheel and installing it or uninstalling it
-with pip.
+The Verime tools is written in python3 and can should be used as a python3 module. 
+The following commands allow to install the Verime tool:
+
+TODO
 ## Examplary run
 
 The [test](test/) directory contains an example of use for the tool. The
