@@ -6,8 +6,8 @@ The Verime (for Verilator-me) tool is proposed to tackle this issues. In particu
 any arbitrary circuitry described in Verilog. It relies on the Verilator tools in order to achieve competitive simulation performances. More into the details, the computation of the internal states values if perfomed by simulating the circuit during an arbitrary amount of clock cycle thanks to a Verilator backend. Verilator is a powerful tool, but requires some expertise and predicting certain internal states using the `\* verilator public *\` pragma can be challenging and time consuming to setup for a non-experienced user. Based on that, the Verime tools acts as a wrapper and aims to (significantly) reduce the evaluator work: it automatically generates the C++ Verilator backend code and generates a user friendly python package. 
 
 In short, the workflow is as follows:
-1. Annotate the Verilog source files with the attribute (\* verilator\_me =
-   "sig\_name" \*). Verime will then track the annotaded signals (based on a netlist obtained with Yosys) and generate the
+1. Annotate the Verilog source files with the attribute `(\* verilator_me =
+   "probed_sig_name" \*)`. Verime will then track the annotaded signals (based on a netlist obtained with Yosys) and generate the
    C++ Verilator code to simulate and keep track of their values during an execution. 
 1. Write a C++ simulation wrapper for the top-level module. In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It is also used to indicate to Verime which cycle to probe (i.e., all, some, ...). The Verime wrapper generate top-level function to ease the integration. More info in the following Sections. 
 1. Run the Verime tool to build the python package. The later can then be installed as any other python package with the pip utility.
@@ -28,7 +28,7 @@ In addition, the following package are required
 * python3.8-venv 
 
 ## Installation
-The Verime tools is written in python3 and can should be used as a python3 module. 
+The Verime tools is written in python3 and should be used as a python3 module. 
 The following commands allow to install the Verime tool:
 ```
 python3 -m build
@@ -38,7 +38,7 @@ In summary, the first command build the python package of the tool and the secon
 
 ## User guide or User To-do list
 
-TODO
+
 
 ## Example
 
@@ -120,7 +120,7 @@ It is now time to compile everything together in order to have our 'easy-to-use'
 For our exmaple, calling `make` under `tests/example` allows to execute the building process. If no problem arises during the later (which should be the case, otherwise please check if you've installed all the required dependencies), a wheel library should be created under the directory named after the `PACK_NAME` variable of the Makefile. 
 
 ### 4. Use the front-end generated library package. 
-Now that the library has been (automatically) built for our simple design, the file [example_simu](tests/example/example_simu.py) demonstrates how the latter can be used to easily simulate the targeted internal values. In particular, it is use in our example to
+Now that the library has been (automatically) built for our simple design, the file [example_simu.py](tests/example/example_simu.py) demonstrates how the latter can be used to easily simulate the targeted internal values. In particular, it is use in our example to
 validate the behavior of our HW module (i.e., by verifying the value of the internal counter after an execution). The following commands (under `tests/example`) can be used to verify that everything went well (here, we rely on a virtual environment which is not stricly required in practice):
 ```
 python3 -m venv ve
