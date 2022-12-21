@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-// Fetch parameters N from the Verilog generic (exported as GENERIC_*) if no other specified.
+// Fetch parameters N from the Verilog generic (exported as GENERIC_* at compilation time by Verime) if no other specified.
 #ifndef N
 #define N GENERIC_N
 #endif
