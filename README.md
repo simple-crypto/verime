@@ -31,18 +31,30 @@ tool in order to build and install Verilator-me.
 ## Installation
 The Verime tools is written in python3 and can should be used as a python3 module. 
 The following commands allow to install the Verime tool:
+```
+python3 -m build
+python3 -m pip install dist/*.whl
+```
+In summary, the first command build the python package of the tool and the second one install the `.whl` file generated. 
 
-TODO
 ## Examplary run
 
-The [test](test/) directory contains an example of use for the tool. The
-exemplary HW circuit considered (under [test/src](https://git-crypto.elen.ucl.ac.be/cmomin/verilator-me/-/tree/README/test/srcs)) does not implement a particular functionality,
-but tries to represent different Verilog coding styles such as bus handling,
-generate and imbricated generate blocks or instanciation of submodules. Once in the [test](test/) directory, one may run 
-```
-make 
-```
-to run all the steps described below. 
+The [tests](tests/example) directory contains an example of use for the tool. In particular, the directory [srcs](tests/example/srcs) contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
+
+* [FA1bit.v](tests/example/srcs/FA1bit.v): a 1-bit full adder. 
+* [FANbits.v](tests/example/srcs/FANbits.v): a N-bit full adder. 
+* [counter.v](tests/example/srcs/counter.v): the top level counter.
+
+These modules are not necessarily optimal and have been coded to explicitly use different coding styles (e.g., generate loop, multiple depth levels, generics and localparam, ... ). For the provided top level, `cnt_bound` is used to specify a delay (in clock cycle), `start` is a control signal used to start a new count and `busy` is asserted when a count is in progress. An execution begins when `start` is asserted (and that `busy` is not). Then, the core will assert `busy` during `cnt_bound`+1 cycles.
+
+ In this simple example, we use Verime to probe some internals signals accross the hierarchy of the counter. In particular, we use the `verilator_me` attribute on the following three internals signals
+
+* `reg [N-1:0] counter_state` (in [counter.v](tests/example/srcs/counter.v)), will be referenced by Verime as `counter_state`
+* `input a` (in [FA1bit.v](tests/example/srcs/FA1bit.v)), will be referenced by Verime as `FA1_ina`
+* `input b` (in [FA1bit.v](tests/example/srcs/FA1bit.v)), will be referenced by Verime as `FA1_inb`
+
+HERE
+
 
 Some signals in the architecture are annotaded with the *verilator\_me* attribute. These are the one
 we would like to probe during a simulation of the circuit. The tool will look for such signals in the architecture 
