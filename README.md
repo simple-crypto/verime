@@ -1,17 +1,16 @@
 # Verilator-me (a.k.a. Verime)
 
-In the context of hardware (HW) implementation, side-channel analysis (SCA) usually requires to have access to the value of internal signals of a target circuitry thanks to a so-called circuit oracle. The implementation of the latter  is usually time consuming (e.g., each probed internal value should be modeled and any modification of the original circuitry implies to rewrite the circuit oracle) and/or achieves poor performances. 
+In the context of hardware (HW) implementation, side-channel analysis (SCA) usually requires to have access to the value of internal signals of a targeted circuitry thanks to a so-called circuit oracle. The implementation of the latter  is usually time consuming (e.g., each probed internal value should be modeled and any modification of the original circuitry implies to rewrite the circuit oracle) and/or achieves poor performances. 
 
-The Verime (for Verilator-me) tool is proposed to tackle this issues. In particular, the latter aims to automatically generate a prediction library of 
-any arbitrary circuitry described in Verilog. It relies on the Verilator tools in order to achieve competitive simulation performances. More into the details, the computation of the internal states values if perfomed by simulating (behavioral simulation) the circuit during an arbitrary amount of clock cycles thanks to a Verilator backend. Verilator is a powerful tool, but requires some expertise and predicting certain internal states using the `\* verilator public *\` pragma can be challenging and time consuming to setup for a non-experienced user. Based on that, the Verime tools acts as a wrapper and aims to (significantly) reduce the evaluator work: it automatically generates the C++ Verilator backend code and generates a user friendly python package. 
+The Verime (for Verilator-me) tool is proposed to tackle these issues. In particular, the latter aims to automatically generate a prediction library of any arbitrary circuitry (described in Verilog). More into the details, the computation of the internal states values if perfomed by simulating (behavioral simulation) the circuit during an arbitrary amount of clock cycles thanks to a Verilator backend. Verilator is a powerful tool, but requires some expertise and predicting certain internal states using the `\* verilator public *\` pragma can be challenging and time consuming to setup for a non-experienced user. Based on that, the Verime tools acts as a wrapper and aims to (significantly) reduce the evaluator work: it automatically generates the C++ Verilator backend code and generates a user friendly python package thant can be easily integrated and used. 
 
 In short, the workflow is as follows:
-1. Annotate the Verilog source files with the attribute `(\* verilator_me =
-   "probed_sig_name" \*)`. Verime will then track the annotaded signals (based on a netlist obtained with Yosys) and generate the
-   C++ Verilator code to simulate and keep track of their values during an execution. 
-1. Write a C++ simulation wrapper for the top-level module. In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It is also used to indicate to Verime which cycle to probe (i.e., all, some, ...). The Verime wrapper generate top-level function to ease the integration. More info in the following Sections. 
-1. Run the Verime tool to build the python package. The later can then be installed as any other python package with the pip utility.
-1. Integrate the package in your custom flow. 
+1. The user annotates the targeted signal in the Verilog source(s) file(s) with the attribute `(\* verilator_me =
+   "probed_sig_name" \*)`. Verime will then track the annotaded signals (based on a netlist obtained with Yosys) and will generate the
+   user friendly functions interacting with the (protentially hard to deal with) Verilator model generated. 
+1. Write a C++ simulation wrapper for the top-level module. In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It also allows a user to specify when the probed signals values should be stored (e.g., all clock cycles or some specific one). To do so, the user is encouraged to use the (few) top-level functions that Verime automatically generates based on the targeted probed signal and the targeted HW architecture.
+1. Run the Verime tool to build a front-end python package. The later can then be installed as any other python package with the pip utility.
+1. Integrate the package in your custom flow and easily recover the value of the targeted signals. 
 
 
 ## Dependencies
@@ -22,28 +21,30 @@ In short, the workflow is as follows:
 * GNU Make (v4.2.1 Built for x86_64-pc-linux-gnu tested)
 * bash on Unix system (GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu) on Ubuntu 20.04.3 tested)
 
-In addition, the following package are required
+In addition, the following python packages are required
 
-* build.
-* python3.8-venv 
+* `build`
+* `python3.8-venv` 
+
+We also recommand to install the `numpy` package in order to easily use the package generated by Verime (more information can be found in the example and in the Section "Verime API and detailed usage"). 
 
 ## Installation
-The Verime tools is written in python3. The following commands allow to install the Verime tool:
+The Verime tools is written in python3 and is organised as a python package. The following commands allow to install the Verime tool:
 ```
 python3 -m build
-python3 -m pip install dist/*.whl
+python3 -m pip install dist/verilator_me-*.whl
 ```
 In summary, the first command build the python package of the tool and the second one install the `.whl` file generated. 
 
 ## Basic example
 
-The [tests](tests/example) directory contains an example of use for the tool. In particular, the directory [srcs](tests/example/srcs) contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
+This section details the different steps to perform in order to use the tool for the simple example provided under the [tests](tests/example) directory. In particular, the directory [srcs](tests/example/srcs) contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
 
 * [FA1bit.v](tests/example/srcs/FA1bit.v): a 1-bit full adder. 
 * [FANbits.v](tests/example/srcs/FANbits.v): a N-bit full adder. 
 * [counter.v](tests/example/srcs/counter.v): the top level counter.
 
-These modules are not necessarily optimal and have been coded to explicitly use different coding styles (e.g., generate loop, multiple depth levels, generics and localparam, ... ). For the provided top level, `cnt_bound` is used to specify a delay (in clock cycle), `start` is a control signal used to start a new count and `busy` is asserted when a count is in progress. An execution begins when `start` is asserted (and that `busy` is not). Then, the core will assert `busy` during `cnt_bound`+1 cycles.
+These modules are not necessarily optimal and have been coded to explicitly use different coding styles (e.g., generate loop, multiple depth levels, generics and localparam, ... ). For the provided top level, `cnt_bound` is used to specify a delay (in terms of clock cycles), `start` is a control signal used to start a new count and `busy` is asserted when a count is in progress. An execution begins when `start` is asserted (and that `busy` is not). Then, the core will assert `busy` during `cnt_bound`+1 cycles.
 
 ### 1. Annotation of the HDL
  In this simple example, we use Verime to probe some internals signals accross the hierarchy of the counter. To do so, we first annotate the internal signals that we want to probe with the `verilator_me` attribute. In particular, we annotate the signals `reg [N-1:0] counter_state` (in [counter.v](tests/example/srcs/counter.v)), `input a` (in [FA1bit.v](tests/example/srcs/FA1bit.v)) and `input b` (in [FA1bit.v](tests/example/srcs/FA1bit.v)) as depicted in the following code snippets
@@ -78,7 +79,7 @@ sm->vtop->rst = 0;
 sim_clock_cycle(sm);
 ...
 ```
-2. Then, the programmable delay is fetched from the input buffer and the dedicated input of the core is set accordingly
+2. Then, the programmable delay is fetched from the input buffer and the dedicated input bus of the core is set accordingly
 ```c
 ...
 // Prepare the run with input data
@@ -96,7 +97,7 @@ sm->vtop->start = 0;
 sm->vtop->eval();
 ...
 ```
-4. Finally, we wait for the end of the execution. While waiting for the counter to reach the configuration, the value of the probed states are saved at every clock cycles. Their values are also saved the cycle after the completion of the counting. 
+4. Finally, we wait for the end of the execution. While waiting for the counter to reach the configuration, the value of the probed states are saved at every clock cycles. Their values are also saved the cycle after the completion of the counting process. 
 ```c
 ...
 // Run until the end of the computation
@@ -112,16 +113,15 @@ save_state(p);
 ```
 ### 3. Building the python3 library package. 
 It is now time to compile everything together in order to have our 'easy-to-use' python package. To do so, the (simple) [Makefile](tests/example/Makefile) provided is a good example of the procedure to follow. The latter is basically a wrapper for the verime tool. 
-For our exmaple, calling `make` under `tests/example` allows to execute the building process. If no problem arises during the later (which should be the case, otherwise please check if you've installed all the required dependencies), a wheel library should be created under the directory named after the `PACK_NAME` variable of the Makefile. 
+For our example, calling `make` under `tests/example` allows to execute the building process. If no problem arises during the later (which should be the case, otherwise please check if you've installed all the required dependencies), a wheel library should be created under the directory named after the `PACK_NAME` variable of the Makefile. 
 
 ### 4. Use the front-end generated library package. 
-Now that the library has been (automatically) built for our simple design, the file [example_simu.py](tests/example/example_simu.py) demonstrates how the latter can be used to easily simulate the targeted internal values. In particular, it is use in our example to
-validate the behavior of our HW module (i.e., by verifying the value of the internal counter after an execution). The following commands (under `tests/example`) can be used to verify that everything went well (here, we rely on a virtual environment which is not stricly required in practice):
-```
+Now that the library has been (automatically) built for our simple design, the file [example_simu.py](tests/example/example_simu.py) demonstrates how the latter can be used to easily simulate the targeted internal values. In particular, we rely on it in our example in order to validate the (functional) behavior of our HW module (i.e., by verifying the value of the internal counter after an execution). The following commands (under `tests/example`) can be used to verify that everything went well (here, we rely on a virtual environment which is recommanded  but not stricly required):
+```bash
 python3 -m venv ve
 source ve/bin/activate # change according to your OS and shell
 pip install --upgrade pip
-pip install numpy # Required for our test script
+pip install numpy # required for our test script
 pip install counter_example_16_lib/*.whl # default value
 python3 example_simu.py
 ```
@@ -134,20 +134,20 @@ All simulated cases where successfully verified!
 ```
 
 ## Verime API and detailed usage
-This section explain with more details the different function that can be used at the different steps of the flow when using the Verime tool. 
+This section explains with more details the different function and parameters that can be used at the different steps of the flow when using the Verime tool. 
 
 ### C++ Wrapper
-The simulation wrapper is the only file that need to be written by as user. In particular, the user only needs to implement to function `run_simu` with the following declaration
+The simulation wrapper is the only file that need to be written by as user. In particular, the user only needs to implement to function `run_simu()` with the following declaration
 ```c
 void run_simu(SimModel *sm, Prober *p, char *data, size_t data_size);
 ```
 The following parameters are used:
 * `SimModel *sm`: a Verime specific structure holding the circuit model generated by the Verilator backend. It is typically used to simulate the stimuli at the top-level of the simulated hardware architecture. 
 * `Prober *p`: a Verime specific structure used to easily to save the value of the probed (i.e., annotaded) signals at a given simulation time. 
-* `char *data`: an array of bytes, provided by the front end as the input case data. These are the data required to perform a simulation. 
+* `char *data`: an array of bytes, provided by the front end as the input data of a single case. These are the data required to perform a simulation. 
 * `size_t data_size`: the amount of input bytes provided. 
 
-The definition of the structures `SimModel` and `Prober` depends on the hardware architecture as well as the annotated signals and are automatically generated by Verime. The directive `#include "verime_lib.h"` MUST be used in order to properly include the generated structure in the compilation flow. Putting all together, a typical wrapper template is as follows:
+The definitions of the structures `SimModel` and `Prober` depend on the hardware architecture as well as the annotated signals and are automatically generated by Verime. The directive `#include "verime_lib.h"` **must** be used in order to properly include the generated library code in the compilation flow. Besides, the Verilog top-level generic values can be recovered in the wrapper. In particular, Verime will define the macro `GENERIC_${PARAM}` for each generic defined at the Verilog top-level (where `PARAM` is the generic name). Putting all together, a typical wrapper template is as follows:
 ```c
 // MUST be included, as is. 
 #include "verime_lib.h"
@@ -164,9 +164,9 @@ void run_simu(SimModel *sm, Prober *p, char* data, size_t data_size) {
 }
 ```
 
-To implement the top-level stimuli, the input/output of the core can be accessed through the `SimModel`. In particular `sm->vtop` references to an instance of the top module simulation object generated with Verilator. It follows that `sm->vtop->sig_name = value;` set the value of the hardware top level I/O bus `sig_name`. The exact types of each data bus depends on its practical size, as summarized by the following table
+To implement the top-level stimuli, the input/output of the core can be accessed through the `SimModel`. In particular `sm->vtop` references to an instance of the top module simulation object generated with Verilator. As an example, the statement `sm->vtop->sig_name = value;` can be used to set the value of the hardware top level I/O bus `sig_name`. The exact types of each data bus depends on its practical size, as summarized by the following table
 
-| size (bits) | C++ type |
+| size $`s`$ (bits) | C++ type |
 | --- | --- |
 | $`s\leq 8`$ | uint8_t |
 | $`8< s \leq 16`$ | uint16_t | 
@@ -174,12 +174,10 @@ To implement the top-level stimuli, the input/output of the core can be accessed
 | $`32< s \leq 64`$ | uint64_t |
 | $`64<s`$ | uint32_t [$`\lceil s/32 \rceil`$]| 
 
-In addition, the following (limited) set of functions are provided when including `verime_lib.h`:
-* `sm->vtop->eval()`: evaluates the circuit internal signals values at the current simulation time. This is basically a call the the `eval` function provided by the Verilator object generated. 
+In addition, the following (limited) set of functions is provided when including `verime_lib.h`:
+* `sm->vtop->eval()`: evaluates the circuit internal signals values at the current simulation time. This is basically a call to the `eval()` function of the Verilator object generated. 
 * `sim_clock_cycle(SimModel * sm)`: simulate a posedge clock cycle. **Caution:** this function only works for a top module fed with a single clock denoted `clk` at the top level.
 * `save_state(Prober * p)`: save the value of the probed signal at the current simulation time.  
-
-Finally, the values of the generics used at the top-level module can be recover in the wrapper. In particular, Verime will define the macro `GENERIC_${PARAM}` for each generic defined at the Verilog top-level (where `PARAM` is the generic name). 
 
 ### Verime usage
 The verime tool is used to build the front-end python package based on the HDL Verilog source and the C++ simulation wrapper. As shown by the tool helper, several parameter can be used.  
@@ -201,21 +199,23 @@ optional arguments:
   --build-dir BUILD_DIR
                         The build directory. (default: .)
 ```
-The only required parameters are `-t`, `--pack` and `simu`. 
+The only required parameters are `-t`, `--pack` and `--simu`. 
 
 ### Front-end Python Wrapper
 
 Once installed, the generated library package can be used to simulate the probed internal state value by calling the `Simul` function, as shown next
 ```python
+import generated_verime_lib as prediction_lib
+...
 predictions = prediction_lib.Simul(
    cases_inputs,
    am_probed_states
 )
 ```
-where `cases_inputs` is a 2D numpy array of bytes (i.e., np.uint8) holds the input byte for each case and `am_probed_states` specifies the maximum amount of time that the probed states will be saved. In practice, each row of `cases_inputs` holds the bytes that will be sent to `run_simu` function in the C++ wrapper for a single execution (i.e., `data` array). The value of `am_probed_states` must be 
-at least equal to the amount of time that the function `save_state` is called in the simulation wrapper. 
+where `cases_inputs` is a 2D numpy array of bytes (i.e., np.uint8) that holds the input bytes for each case and `am_probed_states` specifies the maximum amount of time that the probed states will be saved. In practice, each row of `cases_inputs` holds the bytes that will be sent to `run_simu()` function in the C++ wrapper for a single execution (i.e., `data` array). The value of `am_probed_states` must be 
+at least equal to the amount of time that the function `save_state()` is called in the simulation wrapper. 
 
-The function returns a dictionary in which the keys are the Verime probed signals names and the values are the simulation results. In particular, these are 3D numpy arrays, where the first dimension is the case index, the second dimension is the saving index (i.e., result of the i-th call to `save_state` in `run_simu`) and the third dimension is the byte index of the probed signal value. Putting all together, the following code snippet represents a generic template for the usage of the generated prediction library.
+The function returns a dictionary in which the keys are the Verime probed signals names and the values are the corresponding simulation results. In particular, these are 3D numpy arrays, where the first dimension is the case index, the second dimension is the saving index (i.e., result of the i-th call to `save_state()` in `run_simu()`) and the third dimension is the byte index of the probed signal value. Putting all together, the following code snippet represents a generic template for the usage of the generated prediction library.
 ```python
 # Import the generated lib
 import generated_verime_lib as plib
