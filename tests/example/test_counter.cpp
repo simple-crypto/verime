@@ -1,6 +1,6 @@
 #include "verime_lib.h"
 
-// Fetch parameters N from the Verilog generic (exported as GENERIC_* at compilation time by Verime) if no other specified.
+// Fetch parameters N from the Verilog generic if no other specified (exported as 'GENERIC_${GENERIC_NAME)' at compilation time by Verime)
 #ifndef N
 #define N GENERIC_N
 #endif
