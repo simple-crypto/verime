@@ -28,15 +28,14 @@ In addition, the following package are required
 * python3.8-venv 
 
 ## Installation
-The Verime tools is written in python3 and should be used as a python3 module. 
-The following commands allow to install the Verime tool:
+The Verime tools is written in python3. The following commands allow to install the Verime tool:
 ```
 python3 -m build
 python3 -m pip install dist/*.whl
 ```
 In summary, the first command build the python package of the tool and the second one install the `.whl` file generated. 
 
-## Example
+## Basic example
 
 The [tests](tests/example) directory contains an example of use for the tool. In particular, the directory [srcs](tests/example/srcs) contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
 
@@ -79,7 +78,7 @@ sm->vtop->rst = 0;
 sim_clock_cycle(sm);
 ...
 ```
-1. Then, the programmable delay is fetched from the input buffer and the dedicated input of the core is set accordingly
+2. Then, the programmable delay is fetched from the input buffer and the dedicated input of the core is set accordingly
 ```c
 ...
 // Prepare the run with input data
@@ -87,7 +86,7 @@ sim_clock_cycle(sm);
 memcpy(&sm->vtop->cnt_bound,data,BYTES_BOUND);
 ...
 ```
-1. Afterwards, a core execution is started
+3. Afterwards, a core execution is started
 ```c
 ...
 // Start the run
@@ -97,7 +96,7 @@ sm->vtop->start = 0;
 sm->vtop->eval();
 ...
 ```
-1. Finally, we wait for the end of the execution. While waiting for the counter to reach the configuration, the value of the probed states are saved at every clock cycles. Their values are also saved the cycle after the completion of the counting. 
+4. Finally, we wait for the end of the execution. While waiting for the counter to reach the configuration, the value of the probed states are saved at every clock cycles. Their values are also saved the cycle after the completion of the counting. 
 ```c
 ...
 // Run until the end of the computation
@@ -176,13 +175,35 @@ To implement the top-level stimuli, the input/output of the core can be accessed
 | $`64<s`$ | uint32_t [$`\lceil s/32 \rceil`$]| 
 
 In addition, the following (limited) set of functions are provided when including `verime_lib.h`:
-* `sm->vtop->eval()`: evaluates the circuit internal signals values at the current simulation time.
+* `sm->vtop->eval()`: evaluates the circuit internal signals values at the current simulation time. This is basically a call the the `eval` function provided by the Verilator object generated. 
 * `sim_clock_cycle(SimModel * sm)`: simulate a posedge clock cycle. **Caution:** this function only works for a top module fed with a single clock denoted `clk` at the top level.
 * `save_state(Prober * p)`: save the value of the probed signal at the current simulation time.  
 
 Finally, the values of the generics used at the top-level module can be recover in the wrapper. In particular, Verime will define the macro `GENERIC_${PARAM}` for each generic defined at the Verilog top-level (where `PARAM` is the generic name). 
 
-### Python Wrapper
+### Verime usage
+The verime tool is used to build the front-end python package based on the HDL Verilog source and the C++ simulation wrapper. As shown by the tool helper, several parameter can be used.  
+```
+verime -h
+usage: verime [-h] [-y YDIR [YDIR ...]] [-g GENERICS [GENERICS ...]] -t TOP [--yosys-exec YOSYS_EXEC] --pack PACK --simu SIMU [--build-dir BUILD_DIR]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -y YDIR [YDIR ...], --ydir YDIR [YDIR ...]
+                        Directory for the module search. (default: [])
+  -g GENERICS [GENERICS ...], --generics GENERICS [GENERICS ...]
+                        Verilog generic value, as -g<Id>=<Value>. (default: None)
+  -t TOP, --top TOP     Path to the top module file, e.g. /home/user/top.v. (default: None)
+  --yosys-exec YOSYS_EXEC
+                        Yosys executable. (default: yosys)
+  --pack PACK           The Verilator-me package name. (default: None)
+  --simu SIMU           Path to the C++ file defining run_simu (default: None)
+  --build-dir BUILD_DIR
+                        The build directory. (default: .)
+```
+The only required parameters are `-t`, `--pack` and `simu`. 
+
+### Front-end Python Wrapper
 
 Once installed, the generated library package can be used to simulate the probed internal state value by calling the `Simul` function, as shown next
 ```python
