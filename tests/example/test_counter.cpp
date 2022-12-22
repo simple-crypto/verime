@@ -1,7 +1,4 @@
 #include "verime_lib.h"
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stddef.h>
 
 // Fetch parameters N from the Verilog generic (exported as GENERIC_*) if no other specified.
 #ifndef N
@@ -10,9 +7,6 @@
 
 // Some generation parameters
 #define BYTES_BOUND N/8
-
-struct Prober;
-int save_state(Prober *p);
 
 // The C++ Verilator-like wrapper for the top module. 
 // That is the only mandatory function that a user should write.
