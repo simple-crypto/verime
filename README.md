@@ -255,9 +255,4 @@ Finally, some metadata are embedded in the library package and can be easily acc
 | SIG_BITS | A dictionary holding the width (in bits) for each probed signals |
 | SIG_BYTES | A dictionary holding the amount of byte used to encode each probe signals | 
 
-### Limitations
-
-The following are known for the Verime tool:
-- Verime currently only works with a single clock signal denoted `clk`. The use of any other clock signal name will lead to a failure in the implementation flow.
-- The use of double `_` (i.e., '__') into a probed signal name will result in a error.
 
