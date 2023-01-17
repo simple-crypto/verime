@@ -20,7 +20,7 @@ always@(*) #Td clk<=~clk;
 // Dut
 counter #(.N(N))
 dut(
-    .clk(clk),
+    .my_clk(clk),
     .rst(rst),
     .cnt_bound(cnt_bound),
     .start(start),

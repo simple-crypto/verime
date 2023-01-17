@@ -5,7 +5,7 @@ module counter
     parameter N = 4
 )
 (
-    input clk,
+    input my_clk,
     input rst,
     input [N-1:0] cnt_bound,
     input start,
@@ -17,7 +17,7 @@ module counter
 reg [N-1:0] counter_state;
 wire [N-1:0] counter_nextstate;
 reg inc_counter, rst_counter;
-always@(posedge clk)
+always@(posedge my_clk)
 if(rst_counter) begin
     counter_state <= 0;
 end else if(inc_counter) begin
@@ -36,7 +36,7 @@ fulladder(
 
 // Register to hold the boundary value
 reg [N-1:0] bound;
-always@(posedge clk)
+always@(posedge my_clk)
 if(rst_counter) begin
     bound <= cnt_bound;
 end 
@@ -47,7 +47,7 @@ localparam IDLE=0,
 WAIT=1;
 
 reg [1:0] state, nextstate;
-always@(posedge clk)
+always@(posedge my_clk)
 if(rst) begin
     state <= IDLE;
 end else begin

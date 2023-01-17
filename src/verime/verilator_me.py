@@ -180,14 +180,14 @@ def code_delete_model_ptr():
             )
 
 
-def code_sim_clock_cycle(sim_top_module):
+def code_sim_clock_cycle(sim_top_module,clock_name):
     return (
             "void sim_clock_cycle(SimModel * sm)",
             [
                 f'V{sim_top_module} * top = sm->vtop;',
-                f'top->clk=0;',
+                f'top->{clock_name}=0;',
                 f'top->eval();',
-                f'top->clk=1;',
+                f'top->{clock_name}=1;',
                 f'top->eval();',
                 ]
             )
@@ -433,7 +433,7 @@ def fn_def(code):
             )
 
 
-def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict):
+def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict, clkname):
     functions = [
             code_new_model_ptr(topm),
             code_delete_model_ptr(),
@@ -444,7 +444,7 @@ def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict)
             code_write_probed_state_to_charbuffer(psgis_entries),
             code_reset_ProbedStateBuffer(),
             code_flush_probed_state_buffer(psgis_entries),
-            code_sim_clock_cycle(topm),
+            code_sim_clock_cycle(topm, clkname),
             code_link_state(psgis_entries),
             code_write_probed_state(psgis_entries),
             *[code_accessor(e) for e in psgis_entries],
@@ -474,7 +474,7 @@ def code_verilator_lib(libname, psgis_entries, header_list, topm, generics_dict)
     return (header_code, cpp_code)
 
 # Create the library files
-def build_verilator_library(netlist, libname, out_dir, generics_dict):
+def build_verilator_library(netlist, libname, out_dir, generics_dict, clkname):
     print("# Generating the Verilator library '{}' #".format(libname))
 
     # Search the top module
@@ -491,7 +491,7 @@ def build_verilator_library(netlist, libname, out_dir, generics_dict):
     head_list = ["V{}__Syms.h".format(tm)]
 
     # Write verilator library (.cpp and .h)
-    lib = code_verilator_lib(libname, sigsp, head_list, tm, generics_dict)
+    lib = code_verilator_lib(libname, sigsp, head_list, tm, generics_dict, clkname)
     for code, suffix in zip(lib, ('.h', '.cpp')):
         with open(os.path.join(out_dir, libname+suffix), "w") as f:
             f.write(code)
@@ -610,6 +610,7 @@ def create_verime_package(
     top_module_path,
     yosys_exec,
     simu_file,
+    clock_name,
     sw_dir_name = 'build',
     hw_dir_name = 'hw_src',
 ):
@@ -632,7 +633,7 @@ def create_verime_package(
 
     # Build the library files (.h and .cpp)
     [design_files_used, sigsp] = build_verilator_library(
-        netlist, 'verime_lib', pckg_sw_dir, generics_dict
+        netlist, 'verime_lib', pckg_sw_dir, generics_dict, clock_name
     )
 
     #### Generation of the files for Verilator
@@ -733,6 +734,12 @@ def main():
         default=".",
         help="The build directory.",
     )
+    parser.add_argument(
+        "--clock",
+        type=str,
+        default="clk",
+        help="The clock signal to use."
+    )
     args = parser.parse_args()
 
     dic_gen = {}
@@ -753,4 +760,5 @@ def main():
         args.top,
         args.yosys_exec,
         args.simu,
+        args.clock,
     )

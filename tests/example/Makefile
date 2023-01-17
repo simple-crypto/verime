@@ -6,6 +6,9 @@ PACK_NAME?=counter_example_${MYGEN_N}_lib
 # Directory where the package will be generated
 PACKAGE_DIR = $(abspath $(PACK_NAME))
 
+# Clock signal (here we do not use the defaut signal clk)
+CLKID=my_clk
+
 # Path to the top level Verilog Module
 VERILOG_TOP = srcs/counter.v
 
@@ -29,7 +32,8 @@ verime:
 	    --top $(VERILOG_TOP) \
 	    --pack $(PACK_NAME) \
 	    --build-dir $(PACKAGE_DIR) \
-	    --simu $(SIMU_FILE)
+	    --simu $(SIMU_FILE) \
+	    --clock $(CLKID)
 	make -C $(PACKAGE_DIR)
 
 clean:
