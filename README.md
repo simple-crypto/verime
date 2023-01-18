@@ -16,7 +16,7 @@ In short, the workflow is as follows:
 ## Dependencies
 
 * [Yosys](https://yosyshq.net/yosys/) (Yosys 0.25 (git sha1 e02b7f64b, gcc 9.4.0-1ubuntu1~20.04.1 -fPIC -Os) tested)
-* [Verilator](https://www.veripool.org/verilator/) (Verilator 4.220 2022-03-12 rev v4.220 tested)
+* [Verilator](https://www.veripool.org/verilator/) (Verilator 5.004 2022-12-14 rev v5.004-30-g8468af1a2)
 * Python (Python 3.8.10 tested)
 * GNU Make (v4.2.1 Built for x86_64-pc-linux-gnu tested)
 * bash on Unix system (GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu) on Ubuntu 20.04.3 tested)
