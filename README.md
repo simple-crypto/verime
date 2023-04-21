@@ -1,4 +1,4 @@
-# Verilator-me (a.k.a. Verime)
+# Verime 
 
 In the context of the side-channel analysis of hardware implementations, an evaluator usually requires to have access to the internal values of a target circuitry. For this purpose, a circuit oracle simulating these values is implemented, which may turn out to be time consuming (e.g., each probed internal value should be modeled and any modification of the original circuitry implies to rewrite the circuit oracle) and/or achieve poor performances. 
 
