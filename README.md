@@ -32,8 +32,6 @@ You can also build to wheel locally
 ```
 python3 -m build
 ```
-TODO: add the requirements?
-
 ## Usage example
 
 This section demonstrates how Verime can be used for a simple example provided under the [tests](tests/example) directory. In particular, the later contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
