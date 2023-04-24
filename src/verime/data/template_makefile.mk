@@ -16,8 +16,13 @@ CPP=g++
 
 all: wheel
 
+VERILATOR:=verilator
+ifdef VERILATOR_ROOT
+	VERILATOR=$(VERILATOR_ROOT)/bin/verilator
+endif
+
 $(VERILIB):
-	verilator \
+	$(VERILATOR) \
 	    --cc --build -Mdir $(BUILD_DIR) \
 	    -Wno-WIDTH -Wno-PINMISSING \
 	    $(addprefix -CFLAGS ,$(VERILATOR_CFLAGS)) \
