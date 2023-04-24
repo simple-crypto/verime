@@ -1,3 +1,17 @@
+# Copyright SIMPLE-Crypto contributors <info@simple-crypto.org>
+# 
+# This file is part of verime <https://github.com/simple-crypto/verime>.
+# 
+# Verime is free software: you can redistribute it and/or modify it under the
+# terms of the GNU General Public License version 3 as published by the Free
+# Software Foundation.
+# 
+# Verime is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License along with
+# Verime. If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
 
 import math
 import json
@@ -17,7 +31,7 @@ except ImportError:
 # Constant attribute to look for.
 # Attributed signal will be considered in the file
 # generation
-VERIME_ATTR = "verilator_me"
+VERIME_ATTR = "verime"
 PROBED_STATE_C_VAR = "probed_state_bytes"
 
 def list_all_instances(netlist, top_module):
@@ -32,8 +46,8 @@ def list_all_instances(netlist, top_module):
                 yield ([cell_name]+path, mod)
 
 def list_verime_nets(module):
-    """In a module, list all nets with the verilator_me attribute, and for
-    each one, yield its name, its width, and the value of the verilator_me
+    """In a module, list all nets with the verime attribute, and for
+    each one, yield its name, its width, and the value of the verime
     attribute.
     """
     for netn, net in module['netnames'].items():
@@ -42,8 +56,8 @@ def list_verime_nets(module):
             yield (netn, width, net['attributes'][VERIME_ATTR])
 
 def find_verime_nets(netlist, top_module):
-    """In the architecture, list all signals with a verilator_me attribute.
-    For each such signal, yield its path, the value of the verilator_me
+    """In the architecture, list all signals with a verime attribute.
+    For each such signal, yield its path, the value of the verime
     attribute (suffixed to be unique) and its with.
     """
     for path, module in list_all_instances(netlist, top_module):

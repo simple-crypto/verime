@@ -10,7 +10,7 @@ VERIME_SRC_GEN = \
 	     $(BUILD_DIR)/simulation_runner \
 	     $(BUILD_DIR)/simu
 
-SIMU_O = $(addsuffix .o,$(VERIME_SRC_GEN)) $(BUILD_DIR)/verilated.o
+SIMU_O = $(addsuffix .o,$(VERIME_SRC_GEN)) $(BUILD_DIR)/verilated_threads.o $(BUILD_DIR)/verilated.o
 
 CPP=g++
 
@@ -25,6 +25,9 @@ $(VERILIB):
 	    --threads 1 \
 	    -y $(HW_SRC) \
 	    $(IMPLEM_NAME).v \
+
+$(BUILD_DIR)/verilated_threads.o: $(VERILIB)
+	make -C $(BUILD_DIR) -f V$(IMPLEM_NAME).mk $(notdir $@)
 
 $(BUILD_DIR)/verilated.o: $(VERILIB)
 	make -C $(BUILD_DIR) -f V$(IMPLEM_NAME).mk $(notdir $@)

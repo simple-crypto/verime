@@ -8,9 +8,9 @@ module FA1bit
     cout
 );
 
-(* verilator_me = "FA1_ina" *)
+(* verime = "FA1_ina" *)
 input a;
-(* verilator_me = "FA1_inb" *)
+(* verime = "FA1_inb" *)
 input b;
 input cin;
 output s;

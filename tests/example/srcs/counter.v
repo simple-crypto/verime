@@ -13,7 +13,7 @@ module counter
 );
 
 // Register to hold the value
-(* verilator_me = "counter_state" *)
+(* verime = "counter_state" *)
 reg [N-1:0] counter_state;
 wire [N-1:0] counter_nextstate;
 reg inc_counter, rst_counter;
