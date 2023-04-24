@@ -2,7 +2,7 @@
 
 In the context of the side-channel analysis of hardware implementations, an evaluator usually requires to have access to the internal values of a target circuitry. For this purpose, a circuit oracle simulating these values is implemented, which may turn out to be time consuming (e.g., each probed internal value should be modeled and any modification of the original circuitry implies to rewrite the circuit oracle) and/or achieve poor performances. 
 
-The Verime (for Verilator-me) tool is proposed to tackle these issues. In particular, the latter aims to automatically generate a prediction library of any arbitrary circuitry (described in Verilog). More into the details, the computation of the internal states values if perfomed by simulating (behavioral simulation) the circuit during an arbitrary amount of clock cycles thanks to a Verilator backend. Verilator is a powerful tool, but requires some expertise and predicting certain internal states using the `\* verilator public *\` pragma can be challenging and time consuming to setup for a non-experienced user. Based on that, the Verime tools acts as a wrapper and aims to (significantly) reduce the evaluator work: it automatically generates the C++ Verilator backend code and generates a user friendly python package thant can be easily integrated and used. 
+The Verime tool is proposed to tackle these issues. In particular, the latter aims to automatically generate a prediction library of any arbitrary circuitry (described in Verilog). More into the details, the computation of the internal states values if perfomed by simulating (behavioral simulation) the circuit during an arbitrary amount of clock cycles thanks to a Verilator backend. Verilator is a powerful tool, but requires some expertise and predicting certain internal states using the `\* verilator public *\` pragma can be challenging and time consuming to setup for a non-experienced user. Based on that, the Verime tools acts as a wrapper and aims to (significantly) reduce the evaluator work: it automatically generates the C++ Verilator backend code and generates a user friendly python package thant can be easily integrated and used. 
 
 In short, the workflow is as follows:
 1. The user annotates the targeted signal in the Verilog source(s) file(s) with the attribute `(* verime =
@@ -10,32 +10,33 @@ In short, the workflow is as follows:
    user friendly functions interacting with the (protentially hard to deal with) Verilator model generated. 
 1. Write a C++ simulation wrapper for the top-level module. In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It also allows a user to specify when the probed signals values should be stored (e.g., all clock cycles or some specific one). To do so, the user is encouraged to use the (few) top-level functions that Verime automatically generates based on the targeted probed signal and the targeted HW architecture.
 1. Run the Verime tool to build a front-end python package. The later can then be installed as any other python package with the pip utility.
-1. Integrate the package in your custom flow and easily recover the value of the targeted signals. 
+1. Integrate the package in your custom flow and (easily) recover the value of the targeted signals. 
 
 
 ## Dependencies
 
 * [Yosys](https://yosyshq.net/yosys/) (Yosys 0.25 (git sha1 e02b7f64b, gcc 9.4.0-1ubuntu1~20.04.1 -fPIC -Os) tested)
-* [Verilator](https://www.veripool.org/verilator/) (Verilator 5.004 2022-12-14 rev v5.004-30-g8468af1a2)
-* Python (Python 3.8.10 tested)
+* [Verilator](https://www.veripool.org/verilator/) (Verilator 5.006 2023-01-22 rev v5.006)
+* Python (Python 3.10.6 tested)
 * GNU Make (v4.2.1 Built for x86_64-pc-linux-gnu tested)
 * bash on Unix system (GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu) on Ubuntu 20.04.3 tested)
 
-In addition, the following python package `build` is required
+In addition, the python package `build` is required
 
 ## Installation
-The Verime tools is written in python3 and is organised as a python package. It can be directly fetch from pypi 
+The Verime tools can be used as a python3 module and can be installed directly from pypi using the command
 ```
-pip install verime
+python3 -m pip install verime
 ```
-You can also build it from the sources with the followign commands:
+You can also build to wheel locally 
 ```
 python3 -m build
-python3 -m pip install dist/verime-*.whl
 ```
+TODO: add the requirements?
+
 ## Usage example
 
-This section details the different steps to perform in order to use the tool for the simple example provided under the [tests](tests/example) directory. In particular, the directory [srcs](tests/example/srcs) contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
+This section demonstrates how Verime can be used for a simple example provided under the [tests](tests/example) directory. In particular, the later contains the Verilog file implementing a programmable delay counter (i.e., a module that counts up to an arbitrary value and indicates when it finishes). In particular, the following files can be found:
 
 * [FA1bit.v](tests/example/srcs/FA1bit.v): a 1-bit full adder. 
 * [FANbits.v](tests/example/srcs/FANbits.v): a N-bit full adder. 
@@ -113,12 +114,11 @@ It is now time to compile everything together in order to have our 'easy-to-use'
 For our example, calling `make` under `tests/example` allows to execute the building process. If no problem arises during the later (which should be the case, otherwise please check if you've installed all the required dependencies), a wheel library should be created under the directory named after the `PACK_NAME` variable of the Makefile. 
 
 ### 4. Use the front-end generated library package. 
-Now that the library has been (automatically) built for our simple design, the file [example_simu.py](tests/example/example_simu.py) demonstrates how the latter can be used to easily simulate the targeted internal values. In particular, we rely on it in our example in order to validate the (functional) behavior of our HW module (i.e., by verifying the value of the internal counter after an execution). The following commands (under `tests/example`) can be used to verify that everything went well (here, we rely on a virtual environment which is recommanded  but not stricly required):
+Now that the library has been (automatically) built for our simple design, the file [example_simu.py](tests/example/example_simu.py) demonstrates how the latter can be used to easily simulate the targeted internal values. In particular, we rely on it in our example in order to validate the (functional) behavior of our HW module (i.e., by verifying the value of the internal counter after an execution). The following commands (under `tests/example`) can be used to verify that everything went well (here, we rely on a virtual environment which is recommanded but not stricly required):
 ```bash
 python3 -m venv ve
 source ve/bin/activate # change according to your OS and shell
 pip install --upgrade pip
-pip install numpy # required for our test script
 pip install counter_example_16_lib/*.whl # default value
 python3 example_simu.py
 ```
@@ -173,16 +173,16 @@ To implement the top-level stimuli, the input/output of the core can be accessed
 
 In addition, the following (limited) set of functions is provided when including `verime_lib.h`:
 * `sm->vtop->eval()`: evaluates the circuit internal signals values at the current simulation time. This is basically a call to the `eval()` function of the Verilator object generated. 
-* `sim_clock_cycle(SimModel * sm)`: simulate a posedge clock cycle. **Caution:** this function only works for a top module fed with a single clock denoted `clk` at the top level.
+* `sim_clock_cycle(SimModel * sm)`: simulates a posedge clock cycle. **Caution:** this function only works for a top module fed with a single clock denoted `clk` at the top level.
 * `save_state(Prober * p)`: save the value of the probed signal at the current simulation time.  
 
 ### Verime usage
 The verime tool is used to build the front-end python package based on the HDL Verilog source and the C++ simulation wrapper. As shown by the tool helper, several parameter can be used.  
 ```
 verime -h
-usage: verime [-h] [-y YDIR [YDIR ...]] [-g GENERICS [GENERICS ...]] -t TOP [--yosys-exec YOSYS_EXEC] --pack PACK --simu SIMU [--build-dir BUILD_DIR]
+usage: verime [-h] [-y YDIR [YDIR ...]] [-g GENERICS [GENERICS ...]] -t TOP [--yosys-exec YOSYS_EXEC] --pack PACK --simu SIMU [--build-dir BUILD_DIR] [--clock CLOCK]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -y YDIR [YDIR ...], --ydir YDIR [YDIR ...]
                         Directory for the module search. (default: [])
@@ -195,6 +195,7 @@ optional arguments:
   --simu SIMU           Path to the C++ file defining run_simu (default: None)
   --build-dir BUILD_DIR
                         The build directory. (default: .)
+  --clock CLOCK         The clock signal to use. (default: clk)
 ```
 The only required parameters are `-t`, `--pack` and `--simu`. 
 
