@@ -26,6 +26,9 @@ setup(
         name = "$package",
         version = "0.1",
         packages=find_packages(),
+        install_requires=[
+          'numpy>=1.24.3',
+        ],
         ext_modules=[
             Extension(
                 name="$package.simu",
