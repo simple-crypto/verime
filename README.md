@@ -23,7 +23,7 @@ In short, the workflow is as follows:
 
 In addition, the python package `build` is required.
 
-**CAUTION**: we highly recommand to install Verilator using the packet manager of your OS.  Should it be necessary to rebuild it from [git](Should it be necessary to rebuild it from git, we recommend using an in-place version of Verilator, as recommended in the official documentation. ), we recommend using an in-place version of Verilator, as recommended in the official [documentation](https://veripool.org/guide/latest/install.html#run-in-place-from-verilator-root). 
+**CAUTION**: we highly recommand to install Verilator using the packet manager of your OS.  Should it be necessary to rebuild it from [git](https://github.com/verilator/verilator), we recommend using an in-place version of Verilator, as recommended in the official [documentation](https://veripool.org/guide/latest/install.html#run-in-place-from-verilator-root). 
 
 ## Installation
 The Verime tools can be used as a python3 module and can be installed directly from pypi using the command
