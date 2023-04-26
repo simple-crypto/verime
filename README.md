@@ -10,21 +10,12 @@ The advantages over "raw" Verilator usage are:
 - No need to handle complicated Verilator model interface to probe the value of wires.
 
 In short, the workflow is as follows:
-1. Annotate the targeted signal in the Verilog source(s) file(s) with the attribute `(* verime =
-   "probed_sig_name" *)`.
+1. Annotate the targeted signal in the Verilog source(s) file(s) with the attribute `(* verime = "probed_sig_name" *)`.
 1. Write a C++ simple simulation wrapper for the top-level module that indicates:
     - How the top-level module should be interfaced and how the input data is routed.
     - When the probed signals values should be stored (e.g., all clock cycles or some specific ones).
 1. Run the Verime tool to build a python package (wheel) and install it as any other python package with pip.
 1. Use the simulation package in python scirpts.
-
-    To do so, the user is encouraged to use the (few) top-level functions that Verime automatically generates based on the targeted probed signal and the targeted HW architecture.
-   In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It also allows a user to specify when the probed signals values should be stored (e.g., all clock cycles or some specific one). To do so, the user is encouraged to use the (few) top-level functions that Verime automatically generates based on the targeted probed signal and the targeted HW architecture.
-   Verime will then track the annotaded signals (based on a netlist obtained with Yosys) and will generate the
-   user friendly functions interacting with the (protentially hard to deal with) Verilator model generated. 
-1. Write a C++ simulation wrapper for the top-level module. In practice, this is only required to indicates how your top-level module should be interfaced and how the input data are routed to the later. It also allows a user to specify when the probed signals values should be stored (e.g., all clock cycles or some specific one). To do so, the user is encouraged to use the (few) top-level functions that Verime automatically generates based on the targeted probed signal and the targeted HW architecture.
-1. Run the Verime tool to build a front-end python package. The later can then be installed as any other python package with the pip utility.
-1. Integrate the package in your custom flow and (easily) recover the value of the targeted signals. 
 
 
 ## Dependencies
