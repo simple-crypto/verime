@@ -53,7 +53,15 @@ extern "C" uint32_t get_probed_state_bytes();
 #define PYMODULE_NAME "$package.simu"
 #define PYMODULE_INIT PyInit_simu
 
-#ifndef VERIME_PORTABLE
+#ifdef VERIME_PORTABLE
+// Force inclusion of the symbol: since the symbol if from a library, if we
+// don't use it, maybe we won't get it.
+extern "C" void (*export_simulate_execution_buffer_batch)();
+void (*export_simulate_execution_buffer_batch)() = (void (*)()) &simulate_execution_buffer_batch;
+extern "C" uint32_t (*export_get_probed_state_bytes)();
+uint32_t (*export_get_probed_state_bytes)() = &get_probed_state_bytes;
+
+#else
 static PyObject * simu_batch(PyObject *self, PyObject *args) {
     PyObject *states_obj, *indata_obj;
     Py_buffer states_buf, indata_buf;

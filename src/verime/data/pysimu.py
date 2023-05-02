@@ -50,12 +50,12 @@ else:
     numpy_ctypeslib_flags = ['C_CONTIGUOUS', 'ALIGNED']
 
     array_2d_bytes = np.ctypeslib.ndpointer(
-        dtype=np.unit8,
+        dtype=np.uint8,
         ndim=2,
         flags=numpy_ctypeslib_flags,
     )
     array_3d_bytes = np.ctypeslib.ndpointer(
-        dtype=np.unit8,
+        dtype=np.uint8,
         ndim=3,
         flags=numpy_ctypeslib_flags,
     )
@@ -80,8 +80,8 @@ else:
     ]
     simu_raw.simulate_execution_buffer_batch.restype = ctypes.c_int
     # extern "C" uint32_t get_probed_state_bytes();
-    simu_raw.probed_state_bytes.argtypes = []
-    simu_raw.probed_state_bytes.restype = ctypes.c_uint32
+    simu_raw.get_probed_state_bytes.argtypes = []
+    simu_raw.get_probed_state_bytes.restype = ctypes.c_uint32
 
     def simu_batch(probes_buf, indata, /):
         # uint32_t probed_state_bytes = get_probed_state_bytes();
@@ -102,7 +102,7 @@ else:
         #         batch_size,
         #         max_n_saves
         #         );
-        res = simu_raw.simulate_execution_buffer_batch(
+        err = simu_raw.simulate_execution_buffer_batch(
                 probes_buf,
                 batch_size * max_n_saves * probed_state_bytes,
                 indata,
