@@ -34,6 +34,7 @@ setup(
                 name="$package.simu",
                 sources=["pymod.cpp"],
                 extra_objects=["simu.a"],
+                py_limited_api=True,
                 ),
             ]
 )

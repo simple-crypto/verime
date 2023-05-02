@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#define Py_LIMITED_API 0x03080000 // Build compatible with python3.8
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
