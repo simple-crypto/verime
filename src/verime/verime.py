@@ -715,7 +715,7 @@ def create_verime_package(
         exp_values = ['Simu', 'PROBED_STATE_BYTES', 'SIG_BYTES', 'SIGNALS', 'SIG_BITS', 'GENERICS']
         f.write('from .pysimu import ' + ', '.join(exp_values) + '\n')
         f.write('__all__ = [' + ', '.join(f'"{e}"' for e in exp_values) + ']\n')
-    for fname in ('pyproject.toml', 'pymod.cpp', 'setup.py', 'MANIFEST.in'):
+    for fname in ('pyproject.toml', 'pymod.cpp', 'setup.py', 'setup.cfg', 'MANIFEST.in'):
         s = string.Template((resources / fname).read_text()).substitute(template_params)
         with open(os.path.join(wheel_dir, fname), 'w') as f:
             f.write(s)
