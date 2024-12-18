@@ -1,7 +1,7 @@
 # Copyright SIMPLE-Crypto contributors <info@simple-crypto.org>
-# 
+#
 # This file is part of verime <https://github.com/simple-crypto/verime>.
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the “Software”), to deal
 # in the Software without restriction, including without limitation the rights
@@ -23,19 +23,18 @@
 from setuptools import Extension, setup, find_packages
 
 setup(
-        name = "$package",
-        version = "0.1",
-        packages=find_packages(),
-        install_requires=[
-          'numpy>=1.24.3',
-        ],
-        ext_modules=[
-            Extension(
-                name="$package.simu",
-                sources=["pymod.cpp"],
-                extra_objects=["simu.a"],
-                py_limited_api=True,
-                ),
-            ]
+    name="$package",
+    version="0.1",
+    packages=find_packages(),
+    install_requires=[
+        "numpy>=1.24.3",
+    ],
+    ext_modules=[
+        Extension(
+            name="$package.simu",
+            sources=["pymod.cpp"],
+            extra_objects=["simu.a"],
+            py_limited_api=True,
+        ),
+    ],
 )
-
