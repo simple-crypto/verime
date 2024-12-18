@@ -91,7 +91,7 @@ This code follows the structure:
 #include "verime_lib.h"
 
 // The simulation function. Only function that MUST be implemented
-void run_simu(SimModel *sm, Prober *p, char* data, size_t data_size) {
+void run_simu(SimModel *sm, Prober *p, char* data, size_t data_size, size_t max_n_cycles) {
    // See below for the content of this function.
 }
 ```
@@ -134,19 +134,21 @@ sm->vtop->eval();
 ...
 ```
 
-4. Finally, we wait for the end of the execution. While waiting for the counter to reach the configuration, the value of the probed states are saved at every clock cycles. Their values are also saved the cycle after the completion of the counting process.
+4. Finally, we wait for the end of the execution but run not more than `max_n_cycles` cycles. While waiting for the counter to reach the configuration, the value of the probed states are saved at every clock cycles.
 
 ```c
 ...
 // Run until the end of the computation
-while(sm->vtop->busy==1){
-   // Save all the probed values for the current clock cycle.
-   save_state(p);
-   // Simulate a single clock cycle
-   sim_clock_cycle(sm);    
+for (size_t n_cycles = 0; n_cycles < max_n_cycles; n_cycles++) {
+    // Save all the probed values for the current clock cycle.
+    save_state(p);
+    // Stop if computation is over.
+    if (sm->vtop->busy != 1) {
+        break;
+    }
+    // Simulate a single clock cycle
+    sim_clock_cycle(sm);    
 }
-// Save the probed value once the operation is over
-save_state(p);
 ...
 ```
 
