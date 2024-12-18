@@ -20,11 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#define VERIME_PORTABLE
-
-#ifdef VERIME_PORTABLE
-#define Py_LIMITED_API 0x03080000 // Build compatible with python3.8
-#endif
+#define Py_LIMITED_API 0x03110000 // Build compatible with python3.11
 
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -49,16 +45,6 @@ extern "C" uint32_t get_probed_state_bytes();
 #define PYMODULE_NAME "$package.simu"
 #define PYMODULE_INIT PyInit_simu
 
-#ifdef VERIME_PORTABLE
-// Force inclusion of the symbol: since the symbol if from a library, if we
-// don't use it, maybe we won't get it.
-extern "C" void (*export_simulate_execution_buffer_batch)();
-void (*export_simulate_execution_buffer_batch)() =
-    (void (*)())&simulate_execution_buffer_batch;
-extern "C" uint32_t (*export_get_probed_state_bytes)();
-uint32_t (*export_get_probed_state_bytes)() = &get_probed_state_bytes;
-
-#else
 static PyObject *simu_batch(PyObject *self, PyObject *args) {
   PyObject *states_obj, *indata_obj;
   Py_buffer states_buf, indata_buf;
@@ -153,16 +139,13 @@ PyDoc_STRVAR(
     "execution,\n"
     "indata: array-like, (batch_size, indata_length), uint8\n"
     "\tInput data bytes for each execution (indata_length is arbitrary).");
-#endif // VERIME_PORTABLE
 
 static PyObject *json_description(PyObject *self, PyObject *args) {
   return Py_BuildValue("s", dump_json());
 }
 
 static PyMethodDef methods[] = {
-#ifndef VERIME_PORTABLE
     {"simu_batch", simu_batch, METH_VARARGS, simu_batch_doc},
-#endif // VERIME_PORTABLE
     {"json_description", json_description, METH_VARARGS,
      "JSON description of the simulated code."},
     {NULL, NULL, 0, NULL}};
