@@ -25,7 +25,8 @@
 
 // To be defined in the file supplied by the user of verime.
 // (stored as simu.cpp in the build directory).
-void run_simu(SimModel *sm, Prober *p, char *data, size_t data_size);
+void run_simu(SimModel *sm, Prober *p, char *data, size_t data_size,
+              size_t max_n_cycles);
 
 // Similute multiple execution for a ful run and
 // write the probed internal state for each clock cycle
@@ -50,7 +51,7 @@ extern "C" int simulate_execution_buffer_batch(char *buffer, size_t buffer_size,
   for (size_t r = 0; r < size_batch; r++) {
     Prober p = Prober{buffer + r * max_n_saves * probed_state_bytes, 0,
                       max_n_saves, state};
-    run_simu(sm, &p, data + r * data_call_size, data_call_size);
+    run_simu(sm, &p, data + r * data_call_size, data_call_size, max_n_saves);
   }
 
   // Close stuff
